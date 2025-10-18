@@ -1,6 +1,8 @@
 # xiv
 
 [![Tests](https://github.com/james-akl/xiv/actions/workflows/test.yml/badge.svg)](https://github.com/james-akl/xiv/actions/workflows/test.yml)
+[![Deploy](https://github.com/james-akl/xiv/actions/workflows/deploy.yml/badge.svg)](https://github.com/james-akl/xiv/actions/workflows/deploy.yml)
+[![codecov](https://codecov.io/gh/james-akl/xiv/branch/main/graph/badge.svg)](https://codecov.io/gh/james-akl/xiv)
 [![Python](https://img.shields.io/badge/python-2.7%20%7C%203.3--3.14-blue.svg)](https://github.com/james-akl/xiv)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
