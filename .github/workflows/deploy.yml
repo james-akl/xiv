@@ -16,14 +16,14 @@ jobs:
       - name: Build package
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          mkdir -p build/DEBIAN build/usr/local/bin build/usr/share/doc/xiv
+          mkdir -p build/DEBIAN build/usr/bin build/usr/share/doc/xiv
 
           cp dist/debian/DEBIAN/* build/DEBIAN/
-          cp xiv.py build/usr/local/bin/xiv
+          cp xiv.py build/usr/bin/xiv
           cp README.md build/usr/share/doc/xiv/
           cp dist/debian/usr/share/doc/xiv/copyright build/usr/share/doc/xiv/
 
-          chmod +x build/DEBIAN/postinst build/usr/local/bin/xiv
+          chmod +x build/DEBIAN/postinst build/usr/bin/xiv
           dpkg-deb --build build xiv_${VERSION}_all.deb
           ln -s xiv_${VERSION}_all.deb xiv.deb
 
