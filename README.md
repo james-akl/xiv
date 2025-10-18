@@ -8,20 +8,30 @@ Minimal arXiv search and download tool. Zero external dependencies (Python stdli
 
 ## Installation
 
-**Linux/macOS:**
+**Linux/macOS/WSL:**
 ```bash
 curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv
 chmod +x xiv
 sudo mv xiv /usr/local/bin/
 ```
 
-**Windows:**
+**Windows (PowerShell):**
 ```powershell
 curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv.py
-python xiv.py <query>
+
+# Create wrapper batch file
+@'
+@echo off
+python "%~dp0xiv.py" %*
+'@ | Out-File -FilePath xiv.bat -Encoding ASCII
+
+# Add directory to PATH or move to a directory already in PATH
+# Then use: xiv <query>
 ```
 
-**Uninstall:** `sudo rm /usr/local/bin/xiv`
+**Uninstall:**
+- Linux/macOS/WSL: `sudo rm /usr/local/bin/xiv`
+- Windows: Delete `xiv.py` and `xiv.bat`
 
 ## Usage
 
