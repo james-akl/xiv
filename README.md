@@ -1,0 +1,123 @@
+# xiv
+
+[![Tests](https://github.com/james-akl/xiv/actions/workflows/test.yml/badge.svg)](https://github.com/james-akl/xiv/actions/workflows/test.yml)
+[![Python](https://img.shields.io/badge/python-2.7%20%7C%203.3--3.14-blue.svg)](https://github.com/james-akl/xiv)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+Minimal arXiv search and download tool. Zero external dependencies (Python stdlib only). Requires only a Python interpreter. Written for portability and minimalism, tested on Python 2.7, 3.3–3.14.
+
+## Installation
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv
+chmod +x xiv
+sudo mv xiv /usr/local/bin/
+```
+
+**Windows:**
+```powershell
+curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv.py
+python xiv.py <query>
+```
+
+**Uninstall:** `sudo rm /usr/local/bin/xiv`
+
+## Usage
+
+```bash
+xiv                          # Search 10 latest papers in category (default `cs.RO`)
+xiv "neural networks" -n 20  # Search 20 latest matches in category (default `cs.RO`)
+xiv -h                       # Show help and configuration options
+```
+
+## Options
+
+```
+query              search query
+-n N               max results (default: 10, env: XIV_MAX_RESULTS)
+-c CAT [CAT...]    categories (default: cs.RO, env: XIV_CATEGORY)
+-t DAYS            papers from last N days (max results 1000, use -n to limit)
+-s SORT            sort: date, updated, relevance (default: date, env: XIV_SORT)
+-d [DIR]           download PDFs to DIR (default: papers, env: XIV_PDF_DIR)
+-j                 output as JSON
+-l                 compact list output
+-v, --version      show version
+-h                 show help
+```
+
+## Examples
+
+```bash
+# Find recent papers on transformers in AI/ML
+xiv "transformer attention" -c cs.AI cs.LG -n 10
+# Last week's robotics papers, sorted by relevance
+xiv "manipulation grasping" -c cs.RO -t 7 -s relevance
+# Computer vision papers from last 30 days, limit to 5
+xiv "object detection" -c cs.CV -t 30 -n 5
+# Download latest 3 papers on neural ODEs
+xiv "neural ode" -n 3 -d papers/
+# Get compact list of recent quantum computing papers
+xiv "quantum computing" -c quant-ph -n 20 -l
+# JSON output piped to `jq` for processing
+xiv "graph neural networks" -n 10 -j | jq '.[].title'
+xiv "reinforcement learning" -n 5 -j | jq -r '.[] | "\(.published) - \(.title)"'
+xiv "diffusion models" -n 5 -j | jq -r '.[] | .link' | xargs -I {} firefox {}
+# Combine with other tools
+xiv "large language models" -n 50 -l | grep -i "reasoning"
+xiv "computer vision" -t 7 -l | wc -l  # Count recent CV papers
+```
+
+## Environment Variables
+
+Configure defaults via environment variables:
+
+**Linux/macOS:**
+```bash
+export XIV_MAX_RESULTS=20         # Default number of results
+export XIV_CATEGORY='cs.AI cs.CV' # Default categories
+export XIV_SORT=relevance         # Default sort order
+export XIV_PDF_DIR=papers         # Download directory
+export XIV_DOWNLOAD_DELAY=3.0     # Seconds between downloads
+export XIV_RETRY_ATTEMPTS=3       # Retry attempts for failed requests
+```
+
+For persistence, add to `~/.bashrc`, `~/.zshrc`, or otherwise.
+
+**Windows (PowerShell):**
+```powershell
+$env:XIV_MAX_RESULTS=20
+$env:XIV_CATEGORY="cs.AI cs.CV"
+$env:XIV_SORT="relevance"
+$env:XIV_PDF_DIR="papers"
+$env:XIV_DOWNLOAD_DELAY=3.0
+$env:XIV_RETRY_ATTEMPTS=3
+```
+
+For persistence, use System Properties → Environment Variables.
+
+## Testing
+
+Comprehensive test suite with 45 pytest tests covering all functionality:
+
+```bash
+# Local testing
+pytest                          # Unit tests (mocked, fast)
+pytest --integration            # Integration tests (real arXiv API)
+pytest -v                       # Verbose with test names
+# Multi-version testing
+./run_tests.sh                  # Test Python 2.7, 3.3-3.14 (Docker)
+./run_tests.sh -v               # Verbose output
+./run_tests.sh --integration    # Integration mode across all versions
+```
+
+**Test Coverage:**
+- **Search function**: API parameters, data validation, filtering, sorting
+- **Download function**: PDF retrieval, directory creation, file naming
+- **Helper functions**: Error classification, CAPTCHA detection, retry logic
+- **CLI arguments**: All flags (-n, -c, -t, -s, -d, -j, -l, -v)
+- **Configuration**: Environment variables, constants, defaults
+- **Output formats**: JSON, compact list, standard output
+- **Edge cases**: Empty results, error handling, exit codes
+
+Unit tests use real arXiv response data for accurate mocking and require no network. Integration tests make live API calls. All tests must pass on Python 2.7 and 3.3–3.14.

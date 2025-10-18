@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <link href="http://arxiv.org/api/query?search_query%3Dcat%3Acs.RO%20AND%20%28neural%29%26id_list%3D%26start%3D0%26max_results%3D2" rel="self" type="application/atom+xml"/>
+  <title type="html">ArXiv Query: search_query=cat:cs.RO AND (neural)&amp;id_list=&amp;start=0&amp;max_results=2</title>
+  <id>http://arxiv.org/api/9WDV40Gi+ikvtlrTlSzwMW+jI40</id>
+  <updated>2025-10-17T00:00:00-04:00</updated>
+  <opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">5619</opensearch:totalResults>
+  <opensearch:startIndex xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">0</opensearch:startIndex>
+  <opensearch:itemsPerPage xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">2</opensearch:itemsPerPage>
+  <entry>
+    <id>http://arxiv.org/abs/2510.14968v1</id>
+    <updated>2025-10-16T17:59:37Z</updated>
+    <published>2025-10-16T17:59:37Z</published>
+    <title>RDD: Retrieval-Based Demonstration Decomposer for Planner Alignment in
+  Long-Horizon Tasks</title>
+    <summary>  To tackle long-horizon tasks, recent hierarchical vision-language-action
+(VLAs) frameworks employ vision-language model (VLM)-based planners to
+decompose complex manipulation tasks into simpler sub-tasks that low-level
+visuomotor policies can easily handle. Typically, the VLM planner is finetuned
+to learn to decompose a target task. This finetuning requires target task
+demonstrations segmented into sub-tasks by either human annotation or heuristic
+rules. However, the heuristic subtasks can deviate significantly from the
+training data of the visuomotor policy, which degrades task performance. To
+address these issues, we propose a Retrieval-based Demonstration Decomposer
+(RDD) that automatically decomposes demonstrations into sub-tasks by aligning
+the visual features of the decomposed sub-task intervals with those from the
+training data of the low-level visuomotor policies. Our method outperforms the
+state-of-the-art sub-task decomposer on both simulation and real-world tasks,
+demonstrating robustness across diverse settings. Code and more results are
+available at rdd-neurips.github.io.
+</summary>
+    <author>
+      <name>Mingxuan Yan</name>
+    </author>
+    <author>
+      <name>Yuping Wang</name>
+    </author>
+    <author>
+      <name>Zechun Liu</name>
+    </author>
+    <author>
+      <name>Jiachen Li</name>
+    </author>
+    <arxiv:comment xmlns:arxiv="http://arxiv.org/schemas/atom">39th Conference on Neural Information Processing Systems (NeurIPS
+  2025); Project Website: rdd-neurips.github.io</arxiv:comment>
+    <link href="http://arxiv.org/abs/2510.14968v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2510.14968v1" rel="related" type="application/pdf"/>
+    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.SY" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="eess.SY" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2510.14827v1</id>
+    <updated>2025-10-16T16:04:01Z</updated>
+    <published>2025-10-16T16:04:01Z</published>
+    <title>Neural Implicit Flow Fields for Spatio-Temporal Motion Mapping</title>
+    <summary>  Safe and efficient robot operation in complex human environments can benefit
+from good models of site-specific motion patterns. Maps of Dynamics (MoDs)
+provide such models by encoding statistical motion patterns in a map, but
+existing representations use discrete spatial sampling and typically require
+costly offline construction. We propose a continuous spatio-temporal MoD
+representation based on implicit neural functions that directly map coordinates
+to the parameters of a Semi-Wrapped Gaussian Mixture Model. This removes the
+need for discretization and imputation for unevenly sampled regions, enabling
+smooth generalization across both space and time. Evaluated on a large public
+dataset with long-term real-world people tracking data, our method achieves
+better accuracy of motion representation and smoother velocity distributions in
+sparse regions while still being computationally efficient, compared to
+available baselines. The proposed approach demonstrates a powerful and
+efficient way of modeling complex human motion patterns.
+</summary>
+    <author>
+      <name>Yufei Zhu</name>
+    </author>
+    <author>
+      <name>Shih-Min Yang</name>
+    </author>
+    <author>
+      <name>Andrey Rudenko</name>
+    </author>
+    <author>
+      <name>Tomasz P. Kucner</name>
+    </author>
+    <author>
+      <name>Achim J. Lilienthal</name>
+    </author>
+    <author>
+      <name>Martin Magnusson</name>
+    </author>
+    <link href="http://arxiv.org/abs/2510.14827v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2510.14827v1" rel="related" type="application/pdf"/>
+    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.RO" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+</feed>

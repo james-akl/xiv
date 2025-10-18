@@ -1,0 +1,29 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  unit-tests:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run unit tests
+        run: pytest -v
+
+  compatibility-tests:
+    name: Python 2.7-3.14 Compatibility (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test all Python versions
+        run: ./run_tests.sh
