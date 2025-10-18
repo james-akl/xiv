@@ -25,6 +25,7 @@ jobs:
 
           chmod +x build/DEBIAN/postinst build/usr/local/bin/xiv
           dpkg-deb --build build xiv_${VERSION}_all.deb
+          ln -s xiv_${VERSION}_all.deb xiv.deb
 
           cp xiv.py xiv
           chmod +x xiv
@@ -33,18 +34,20 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            xiv_*.deb
+            xiv.deb
             xiv
           body: |
-            **Debian package:**
+            **Debian/Ubuntu:**
             ```bash
-            curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv_1.0.0_all.deb -o xiv.deb
+            curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv.deb -o xiv.deb
             sudo dpkg -i xiv.deb
             ```
+            Uninstall: `sudo dpkg -r xiv` or `sudo apt remove xiv`
 
-            **Direct download:**
+            **Linux/macOS/WSL:**
             ```bash
             curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv
             chmod +x xiv
             sudo mv xiv /usr/local/bin/
             ```
+            Uninstall: `sudo rm /usr/local/bin/xiv`
