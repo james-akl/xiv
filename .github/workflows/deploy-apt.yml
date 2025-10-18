@@ -1,4 +1,4 @@
-name: Deploy APT
+name: Build and Release
 
 on:
   push:
@@ -6,11 +6,9 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,41 +26,13 @@ jobs:
           chmod +x build/DEBIAN/postinst build/usr/local/bin/xiv
           dpkg-deb --build build xiv_${VERSION}_all.deb
 
-      - name: Create repository
-        run: |
-          mkdir -p repo/pool/main/x/xiv
-          cp *.deb repo/pool/main/x/xiv/
-
-          for arch in amd64 arm64 armhf i386; do
-            mkdir -p repo/dists/stable/main/binary-$arch
-            (cd repo/dists/stable/main/binary-$arch &&
-             dpkg-scanpackages -a $arch ../../../../pool/main > Packages &&
-             gzip -k Packages)
-          done
-
-          cat > repo/dists/stable/Release << 'END'
-          Origin: xiv
-          Label: xiv
-          Suite: stable
-          Codename: stable
-          Architectures: amd64 arm64 armhf i386
-          Components: main
-          Description: xiv APT repository
-          END
-          echo "Date: $(date -R)" >> repo/dists/stable/Release
-
-          cd repo/dists/stable
-          echo "MD5Sum:" >> Release
-          find main -type f -exec sh -c 'printf " %s %8d %s\n" "$(md5sum "$1" | cut -d" " -f1)" "$(stat -c%s "$1")" "$1"' _ {} \; >> Release
-
-          echo "SHA256:" >> Release
-          find main -type f -exec sh -c 'printf " %s %8d %s\n" "$(sha256sum "$1" | cut -d" " -f1)" "$(stat -c%s "$1")" "$1"' _ {} \; >> Release
-
-          touch ../../.nojekyll
-
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./repo
-          force_orphan: true
+          files: xiv_*.deb
+          body: |
+            Install via:
+            ```bash
+            curl -fsSL https://github.com/james-akl/xiv/releases/download/${{ github.ref_name }}/xiv_${GITHUB_REF#refs/tags/v}_all.deb -o xiv.deb
+            sudo dpkg -i xiv.deb
+            ```
