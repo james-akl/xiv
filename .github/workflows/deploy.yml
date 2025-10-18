@@ -26,13 +26,25 @@ jobs:
           chmod +x build/DEBIAN/postinst build/usr/local/bin/xiv
           dpkg-deb --build build xiv_${VERSION}_all.deb
 
+          cp xiv.py xiv
+          chmod +x xiv
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: xiv_*.deb
+          files: |
+            xiv_*.deb
+            xiv
           body: |
-            Install via:
+            **Debian package:**
             ```bash
-            curl -fsSL https://github.com/james-akl/xiv/releases/download/${{ github.ref_name }}/xiv_${GITHUB_REF#refs/tags/v}_all.deb -o xiv.deb
+            curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv_1.0.0_all.deb -o xiv.deb
             sudo dpkg -i xiv.deb
+            ```
+
+            **Direct download:**
+            ```bash
+            curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv
+            chmod +x xiv
+            sudo mv xiv /usr/local/bin/
             ```
