@@ -1,0 +1,10 @@
+Package: xiv
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: python3 | python (>= 2.7) | python2
+Maintainer: James Akl <james-akl@outlook.com>
+Description: arXiv search and download
+ Minimal arXiv search and download tool. Requires only a Python interpreter. Tested on Python 2.7, 3.3-3.14.
+Homepage: https://github.com/james-akl/xiv
