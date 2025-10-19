@@ -12,7 +12,7 @@ import argparse, sys, os, json, re, time, signal
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 # Python 2/3 compatibility for urllib
 try:
