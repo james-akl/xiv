@@ -1,11 +1,20 @@
 #!/usr/bin/env python
-"""xiv - Search and download papers from arXiv"""
+"""xiv - Search and download papers from arXiv
+
+This code is written for portability across Python 2.7-3.14+.
+Style choices are deliberate for compatibility:
+- No type hints (Python 2 incompatible)
+- No f-strings (Python 2, 3.3-3.5 incompatible)
+- Import compatibility blocks for urllib (Python 2/3 differences)
+- Explicit exception handling for platform differences (SIGPIPE on Windows)
+"""
 import argparse, sys, os, json, re, time, signal
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 __version__ = "1.0.0"
 
+# Python 2/3 compatibility for urllib
 try:
     from urllib.request import urlopen, Request
     from urllib.parse import urlencode
@@ -18,7 +27,14 @@ NS = {
     'opensearch': 'http://a9.com/-/spec/opensearch/1.1/'
 }
 SORTS = {'date': 'submittedDate', 'updated': 'lastUpdatedDate', 'relevance': 'relevance'}
+
+# Constants
 MIN_VALID_PDF_SIZE = 100000  # PDFs are typically >100KB; smaller files are likely CAPTCHA pages
+CAPTCHA_CHECK_BYTES = 1024   # Read first 1KB to detect HTML CAPTCHA pages
+MAX_AUTHORS_DISPLAYED = 3    # Show first N authors, rest as "et al."
+DATE_PREFIX_LENGTH = 10      # YYYY-MM-DD format
+MAX_TIME_RESULTS = 1000      # arXiv API limit for time-based queries
+EXIT_SIGINT = 130            # POSIX exit code for SIGINT (128 + 2)
 
 DEFAULT_RESULTS = int(os.getenv('XIV_MAX_RESULTS', '10'))
 DEFAULT_CATEGORY = os.getenv('XIV_CATEGORY', 'cs.RO')
@@ -52,6 +68,7 @@ def retry_with_backoff(operation, error_msg_prefix):
     return None
 
 def search(query, max_results=10, sort='submittedDate', since=None, categories=None):
+    """Query arXiv API and return list of matching papers"""
     cat_query = " OR ".join("cat:" + c for c in categories) if categories else "cat:" + DEFAULT_CATEGORY
     search_query = "(%s) AND (%s)" % (cat_query, query)
 
@@ -70,6 +87,7 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
     if not xml:
         return []
 
+    # Handle Python 2/3 encoding differences
     try:
         root = ET.fromstring(xml.encode('utf-8'))
     except (UnicodeDecodeError, ET.ParseError):
@@ -77,13 +95,13 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
 
     papers = []
     for entry in root.findall('a:entry', NS):
-        pub = entry.find('a:published', NS).text[:10]
+        pub = entry.find('a:published', NS).text[:DATE_PREFIX_LENGTH]
         if since and pub < since:
             continue
 
         authors = [a.find('a:name', NS).text for a in entry.findall('a:author', NS)]
-        auth = ", ".join(authors[:3])
-        if len(authors) > 3:
+        auth = ", ".join(authors[:MAX_AUTHORS_DISPLAYED])
+        if len(authors) > MAX_AUTHORS_DISPLAYED:
             auth += " et al. (%d)" % len(authors)
 
         papers.append({
@@ -96,13 +114,15 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
     return papers
 
 def is_captcha(path):
+    """Detect if downloaded file is HTML CAPTCHA page instead of PDF"""
     if os.path.getsize(path) >= MIN_VALID_PDF_SIZE:
         return False
     with open(path, 'rb') as f:
-        content = f.read(1024).lower()
+        content = f.read(CAPTCHA_CHECK_BYTES).lower()
     return b'<html' in content or b'captcha' in content or b'<!doctype' in content
 
 def download(link, output_dir):
+    """Download single paper PDF with retry logic. Returns True, False, or 'captcha'"""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -151,23 +171,19 @@ def download(link, output_dir):
                 return False
 
 def format_json(papers):
-    """Format papers as JSON"""
     print(json.dumps(papers, indent=2, ensure_ascii=False))
 
 def format_compact(papers):
-    """Format papers as compact list"""
     w = len(str(len(papers)))
     for i, p in enumerate(papers, 1):
         print("[%s, %s] %s" % (str(i).zfill(w), p['published'], p['title']))
 
 def format_detailed(papers):
-    """Format papers with full details"""
     for i, p in enumerate(papers, 1):
         print("\n[%d] %s" % (i, p['title']))
         print("    %s\n    %s | %s\n    %s" % (p['authors'], p['published'], p['link'], p['abstract']))
 
 def download_papers(papers, output_dir):
-    """Download all papers with rate limiting and progress tracking"""
     sys.stderr.write("\nDownloading to '%s/'...\n" % output_dir)
     if len(papers) > 1:
         sys.stderr.write("Rate limiting: %.1fs delay between downloads\n" % DEFAULT_DOWNLOAD_DELAY)
@@ -185,16 +201,14 @@ def download_papers(papers, output_dir):
         elif result:
             ok += 1
 
-        # Delay between downloads to avoid CAPTCHA (except after last)
         if i < len(papers):
             try:
                 time.sleep(DEFAULT_DOWNLOAD_DELAY)
             except KeyboardInterrupt:
                 sys.stderr.write("\n\nDownload cancelled by user.\n")
                 sys.stderr.write("%d/%d saved before cancellation\n" % (ok, len(papers)))
-                sys.exit(130)
+                sys.exit(EXIT_SIGINT)
 
-    # Report results
     sys.stderr.write("\n%d/%d saved" % (ok, len(papers)))
     if captcha_count > 0:
         sys.stderr.write(", %d CAPTCHA blocked\n\n" % captcha_count)
@@ -205,14 +219,13 @@ def download_papers(papers, output_dir):
     sys.stderr.write("\n")
 
 def parse_arguments():
-    """Parse command line arguments"""
     p = argparse.ArgumentParser(description='xiv', add_help=False,
         formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=30, width=100))
 
     p.add_argument('query', nargs='?', default='all', help='search query')
     p.add_argument('-n', type=int, metavar='N', help='max results (default: %d, env: XIV_MAX_RESULTS)' % DEFAULT_RESULTS)
     p.add_argument('-c', nargs='+', metavar='CAT', help='categories (default: %s, env: XIV_CATEGORY)' % DEFAULT_CATEGORY)
-    p.add_argument('-t', type=int, metavar='DAYS', help='papers from last N days (max results 1000, use -n to limit further)')
+    p.add_argument('-t', type=int, metavar='DAYS', help='papers from last N days (max results %d, use -n to limit further)' % MAX_TIME_RESULTS)
     p.add_argument('-s', choices=['date', 'updated', 'relevance'], metavar='SORT',
                    help='sort by: date, updated, relevance (default: %s, env: XIV_SORT)' % DEFAULT_SORT)
     p.add_argument('-d', nargs='?', const=DEFAULT_PDF_DIR, metavar='DIR',
@@ -227,19 +240,16 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
-    # Determine search parameters
     since = (datetime.now() - timedelta(days=args.t)).strftime('%Y-%m-%d') if args.t else None
-    max_results = args.n if args.n else (1000 if args.t else DEFAULT_RESULTS)
+    max_results = args.n if args.n else (MAX_TIME_RESULTS if args.t else DEFAULT_RESULTS)
     sort = SORTS.get(args.s or DEFAULT_SORT)
 
-    # Execute search
     papers = search(args.query, max_results, sort, since, args.c)
 
     if not papers:
         sys.stderr.write("No papers found matching your query.\n")
         sys.exit(1)
 
-    # Display results
     if args.j:
         format_json(papers)
     elif args.l:
@@ -247,12 +257,11 @@ def main():
     else:
         format_detailed(papers)
 
-    # Download if requested
     if args.d:
         download_papers(papers, args.d)
 
 if __name__ == "__main__":
-    # Ignore SIGPIPE for clean broken pipe handling (Unix/Linux)
+    # Restore default SIGPIPE to avoid traceback on broken pipes
     try:
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     except AttributeError:
@@ -262,4 +271,4 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         sys.stderr.write("\n\nInterrupted.\n")
-        sys.exit(130)
+        sys.exit(EXIT_SIGINT)
