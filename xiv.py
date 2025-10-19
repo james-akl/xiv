@@ -7,18 +7,18 @@ from datetime import datetime, timedelta
 __version__ = "1.0.0"
 
 try:
-    from urllib.request import urlopen, urlretrieve, Request
+    from urllib.request import urlopen, Request
     from urllib.parse import urlencode
 except ImportError:
     from urllib2 import urlopen, Request
     from urllib import urlencode
-    urlretrieve = None
 
 NS = {
     'a': 'http://www.w3.org/2005/Atom',
     'opensearch': 'http://a9.com/-/spec/opensearch/1.1/'
 }
 SORTS = {'date': 'submittedDate', 'updated': 'lastUpdatedDate', 'relevance': 'relevance'}
+MIN_VALID_PDF_SIZE = 100000  # PDFs are typically >100KB; smaller files are likely CAPTCHA pages
 
 DEFAULT_RESULTS = int(os.getenv('XIV_MAX_RESULTS', '10'))
 DEFAULT_CATEGORY = os.getenv('XIV_CATEGORY', 'cs.RO')
@@ -31,42 +31,48 @@ def is_retryable_error(error):
     err_str = str(error).lower()
     return any(code in err_str for code in ['503', '502', '504', 'timeout'])
 
-def search(query, max_results=10, sort='submittedDate', since=None, categories=None):
-    cat_query = " OR ".join("cat:" + c for c in categories) if categories else "cat:" + DEFAULT_CATEGORY
-    search_query = "(%s) AND (%s)" % (cat_query, query)
-
-    xml = None
+def retry_with_backoff(operation, error_msg_prefix):
+    """Execute operation with exponential backoff retry logic"""
     for attempt in range(DEFAULT_RETRY_ATTEMPTS):
         try:
-            url = "https://export.arxiv.org/api/query?" + urlencode({
-                'search_query': search_query, 'start': 0, 'max_results': max_results,
-                'sortBy': sort, 'sortOrder': 'descending'
-            })
-            req = Request(url, headers={'User-Agent': 'xiv/%s' % __version__})
-            resp = urlopen(req)
-            xml = resp.read().decode('utf-8')
-            resp.close()
-            break
+            return operation()
         except Exception as e:
             if attempt < DEFAULT_RETRY_ATTEMPTS - 1 and is_retryable_error(e):
                 wait_time = (2 ** attempt)
-                sys.stderr.write("ArXiv unavailable (attempt %d/%d), retrying in %ds... (Ctrl+C to cancel)\n" %
-                                (attempt + 1, DEFAULT_RETRY_ATTEMPTS, wait_time))
+                sys.stderr.write("%s (attempt %d/%d), retrying in %ds... (Ctrl+C to cancel)\n" %
+                                (error_msg_prefix, attempt + 1, DEFAULT_RETRY_ATTEMPTS, wait_time))
                 try:
                     time.sleep(wait_time)
                 except KeyboardInterrupt:
                     sys.stderr.write("\nCancelled.\n")
-                    return []
+                    return None
             else:
-                sys.stderr.write("Error querying arXiv: %s\n" % e)
-                return []
+                sys.stderr.write("Error: %s\n" % e)
+                return None
+    return None
 
+def search(query, max_results=10, sort='submittedDate', since=None, categories=None):
+    cat_query = " OR ".join("cat:" + c for c in categories) if categories else "cat:" + DEFAULT_CATEGORY
+    search_query = "(%s) AND (%s)" % (cat_query, query)
+
+    def fetch_xml():
+        url = "https://export.arxiv.org/api/query?" + urlencode({
+            'search_query': search_query, 'start': 0, 'max_results': max_results,
+            'sortBy': sort, 'sortOrder': 'descending'
+        })
+        req = Request(url, headers={'User-Agent': 'xiv/%s' % __version__})
+        resp = urlopen(req)
+        xml = resp.read().decode('utf-8')
+        resp.close()
+        return xml
+
+    xml = retry_with_backoff(fetch_xml, "ArXiv unavailable")
     if not xml:
         return []
 
     try:
         root = ET.fromstring(xml.encode('utf-8'))
-    except:
+    except (UnicodeDecodeError, ET.ParseError):
         root = ET.fromstring(xml)
 
     papers = []
@@ -76,7 +82,9 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
             continue
 
         authors = [a.find('a:name', NS).text for a in entry.findall('a:author', NS)]
-        auth = ", ".join(authors[:3]) + (" et al. (%d)" % len(authors) if len(authors) > 3 else "")
+        auth = ", ".join(authors[:3])
+        if len(authors) > 3:
+            auth += " et al. (%d)" % len(authors)
 
         papers.append({
             'title': re.sub(r'\s+', ' ', entry.find('a:title', NS).text.strip()),
@@ -88,7 +96,7 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
     return papers
 
 def is_captcha(path):
-    if os.path.getsize(path) >= 100000:
+    if os.path.getsize(path) >= MIN_VALID_PDF_SIZE:
         return False
     with open(path, 'rb') as f:
         content = f.read(1024).lower()
@@ -104,23 +112,27 @@ def download(link, output_dir):
     sys.stderr.write("  %s... " % paper_id)
     sys.stderr.flush()
 
+    def fetch_pdf():
+        pdf_url = "https://arxiv.org/pdf/%s.pdf" % paper_id
+        req = Request(pdf_url, headers={'User-Agent': 'xiv/%s' % __version__})
+        r = urlopen(req)
+        with open(path, 'wb') as f:
+            f.write(r.read())
+        r.close()
+
+        if is_captcha(path):
+            os.remove(path)
+            return 'captcha'
+        return True
+
     for attempt in range(DEFAULT_RETRY_ATTEMPTS):
         try:
-            pdf_url = "https://arxiv.org/pdf/%s.pdf" % paper_id
-            req = Request(pdf_url, headers={'User-Agent': 'xiv/%s' % __version__})
-            r = urlopen(req)
-            with open(path, 'wb') as f:
-                f.write(r.read())
-            r.close()
-
-            if is_captcha(path):
-                os.remove(path)
+            result = fetch_pdf()
+            if result == 'captcha':
                 sys.stderr.write("CAPTCHA\n")
                 return 'captcha'
-
             sys.stderr.write("OK\n")
             return True
-
         except Exception as e:
             if os.path.exists(path):
                 os.remove(path)
