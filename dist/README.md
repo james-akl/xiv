@@ -1,6 +1,6 @@
 ## Debian Package
 
-Package metadata for building .deb releases.
+Package metadata for building `.deb` releases.
 
 On tagged releases, GitHub Actions builds the Debian package and standalone script, then attaches both to the release.
 

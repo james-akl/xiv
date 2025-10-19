@@ -507,6 +507,177 @@ class TestEdgeCases:
         assert 'Traceback' not in stderr and 'BrokenPipeError' not in stderr
 
 
+# Index parsing tests
+class TestParseIndices:
+    @pytest.mark.parametrize("spec,total,expected", [
+        ('1', 5, [0]),
+        ('1,3,5', 5, [0, 2, 4]),
+        ('1-3', 5, [0, 1, 2]),
+        ('1-5', 5, [0, 1, 2, 3, 4]),
+        ('1,3-5', 10, [0, 2, 3, 4]),
+        ('1,3-5,8', 10, [0, 2, 3, 4, 7]),
+        ('5-7,2,9', 10, [1, 4, 5, 6, 8]),
+        ('1, 3 , 5', 5, [0, 2, 4]),  # With spaces
+    ])
+    def test_valid_index_specs(self, xiv, spec, total, expected):
+        result = xiv.parse_indices(spec, total)
+        assert result == expected
+
+    @pytest.mark.parametrize("spec,total", [
+        ('0', 5),          # Index too low
+        ('6', 5),          # Index too high
+        ('1-6', 5),        # Range exceeds total
+        ('3-1', 5),        # Reversed range
+        ('-1', 5),         # Negative index
+        ('1--3', 5),       # Double dash
+        ('abc', 5),        # Non-numeric
+        ('1,a,3', 5),      # Mixed valid/invalid
+        ('1.5', 5),        # Float
+        ('', 5),           # Empty string
+        (None, 5),         # None
+    ])
+    def test_invalid_index_specs(self, xiv, spec, total):
+        result = xiv.parse_indices(spec, total)
+        assert result is None
+
+    def test_deduplicates_indices(self, xiv):
+        result = xiv.parse_indices('1,1,2,2', 5)
+        assert result == [0, 1]
+
+    def test_sorts_indices(self, xiv):
+        result = xiv.parse_indices('5,3,1,4,2', 5)
+        assert result == [0, 1, 2, 3, 4]
+
+
+# Selective download tests
+class TestSelectiveDownload:
+    @pytest.fixture(autouse=True)
+    def setup(self, xiv, monkeypatch, tmpdir):
+        self.xiv = xiv
+        self.tmpdir = tmpdir
+        self.downloads = []
+
+        monkeypatch.setattr(xiv, 'download', lambda link, d: self.downloads.append(link) or True)
+        monkeypatch.setattr(time, 'sleep', lambda s: None)
+
+    def test_downloads_selected_papers_by_indices(self):
+        papers = [
+            {'link': 'http://arxiv.org/abs/1', 'title': 'P1'},
+            {'link': 'http://arxiv.org/abs/2', 'title': 'P2'},
+            {'link': 'http://arxiv.org/abs/3', 'title': 'P3'},
+            {'link': 'http://arxiv.org/abs/4', 'title': 'P4'},
+            {'link': 'http://arxiv.org/abs/5', 'title': 'P5'},
+        ]
+        self.xiv.download_papers(papers, self.tmpdir, indices=[0, 2, 4])
+        assert self.downloads == [
+            'http://arxiv.org/abs/1',
+            'http://arxiv.org/abs/3',
+            'http://arxiv.org/abs/5'
+        ]
+
+    def test_downloads_all_when_no_indices(self):
+        papers = [
+            {'link': 'http://arxiv.org/abs/1', 'title': 'P1'},
+            {'link': 'http://arxiv.org/abs/2', 'title': 'P2'},
+        ]
+        self.xiv.download_papers(papers, self.tmpdir, indices=None)
+        assert len(self.downloads) == 2
+
+    def test_progress_shows_selected_count(self, capsys):
+        papers = [
+            {'link': 'http://arxiv.org/abs/%d' % i, 'title': 'P%d' % i}
+            for i in range(1, 11)
+        ]
+        self.xiv.download_papers(papers, self.tmpdir, indices=[0, 4, 9])
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert '[1/3]' in stderr and '[2/3]' in stderr and '[3/3]' in stderr
+
+
+# CLI tests for selective download
+class TestCLISelectiveDownload:
+    @pytest.fixture(autouse=True)
+    def setup(self, xiv, monkeypatch, tmpdir):
+        self.xiv = xiv
+        self.tmpdir = tmpdir
+        self.download_papers_calls = []
+
+        self.papers = [
+            {'title': 'Paper %d' % i, 'authors': 'Author', 'published': '2025-10-16',
+             'link': 'http://arxiv.org/abs/%d' % i, 'abstract': 'Abstract'}
+            for i in range(1, 6)
+        ]
+
+        monkeypatch.setattr(xiv, 'search', lambda *a, **k: self.papers)
+        monkeypatch.setattr(xiv, 'download_papers',
+                          lambda papers, dir, indices=None: self.download_papers_calls.append((papers, dir, indices)))
+
+    @pytest.mark.parametrize("args,expected_dir,expected_indices", [
+        (['-d'], 'DEFAULT_PDF_DIR', None),
+        (['-d', '1,3,5'], 'DEFAULT_PDF_DIR', [0, 2, 4]),
+        (['-d', '1-3'], 'DEFAULT_PDF_DIR', [0, 1, 2]),
+        (['-d', '1,3-5'], 'DEFAULT_PDF_DIR', [0, 2, 3, 4]),
+    ])
+    def test_download_args_combinations(self, monkeypatch, args, expected_dir, expected_indices):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test'] + args)
+        self.xiv.main()
+        papers, dir, indices = self.download_papers_calls[0]
+        exp_dir = self.xiv.DEFAULT_PDF_DIR if expected_dir == 'DEFAULT_PDF_DIR' else expected_dir
+        assert dir == exp_dir and indices == expected_indices
+
+    def test_download_with_directory_only(self, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-d', self.tmpdir])
+        self.xiv.main()
+        papers, dir, indices = self.download_papers_calls[0]
+        assert dir == self.tmpdir and indices is None
+
+    def test_download_with_directory_and_indices(self, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-d', self.tmpdir, '1,3'])
+        self.xiv.main()
+        papers, dir, indices = self.download_papers_calls[0]
+        assert dir == self.tmpdir and indices == [0, 2]
+
+    def test_invalid_indices_exits_with_error(self, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-d', '1,999'])
+        with pytest.raises(SystemExit) as e:
+            self.xiv.main()
+        assert e.value.code == 1
+
+    def test_too_many_args_exits_with_error(self, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-d', 'dir1', 'dir2', 'dir3'])
+        with pytest.raises(SystemExit) as e:
+            self.xiv.main()
+        assert e.value.code == 1
+
+
+# parse_download_args tests
+class TestParseDownloadArgs:
+    def test_returns_none_when_no_download_flag(self, xiv):
+        dir, indices = xiv.parse_download_args(None, 5)
+        assert dir is None and indices is None
+
+    @pytest.mark.parametrize("args,num_papers,expected_dir,expected_indices", [
+        ([], 5, 'DEFAULT', None),
+        (['papers/'], 5, 'papers/', None),
+        (['1,3'], 5, 'DEFAULT', [0, 2]),
+        (['papers/', '1-3'], 5, 'papers/', [0, 1, 2]),
+    ])
+    def test_valid_download_args(self, xiv, args, num_papers, expected_dir, expected_indices):
+        dir, indices = xiv.parse_download_args(args, num_papers)
+        exp_dir = xiv.DEFAULT_PDF_DIR if expected_dir == 'DEFAULT' else expected_dir
+        assert dir == exp_dir and indices == expected_indices
+
+    def test_exits_on_too_many_args(self, xiv):
+        with pytest.raises(SystemExit) as e:
+            xiv.parse_download_args(['a', 'b', 'c'], 5)
+        assert e.value.code == 1
+
+    def test_exits_on_invalid_indices(self, xiv):
+        with pytest.raises(SystemExit) as e:
+            xiv.parse_download_args(['1,999'], 5)
+        assert e.value.code == 1
+
+
 # Configuration tests
 def test_sorts_mapping(xiv):
     assert xiv.SORTS == {'date': 'submittedDate', 'updated': 'lastUpdatedDate', 'relevance': 'relevance'}

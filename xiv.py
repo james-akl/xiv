@@ -183,16 +183,48 @@ def format_detailed(papers):
         print("\n[%d] %s" % (i, p['title']))
         print("    %s\n    %s | %s\n    %s" % (p['authors'], p['published'], p['link'], p['abstract']))
 
-def download_papers(papers, output_dir):
+def parse_indices(spec, total):
+    """Parse index specification like '1,3-5,8' into list of 0-based indices.
+
+    Returns list of valid indices or None if spec is invalid.
+    Examples: '1,3,5' -> [0,2,4], '1-3' -> [0,1,2], '1,3-5,8' -> [0,2,3,4,7]
+    """
+    if not spec:
+        return None
+
+    indices = set()
+    try:
+        for part in spec.split(','):
+            part = part.strip()
+            if '-' in part:
+                start, end = part.split('-', 1)
+                start_idx = int(start) - 1
+                end_idx = int(end) - 1
+                if start_idx < 0 or end_idx >= total or start_idx > end_idx:
+                    return None
+                indices.update(range(start_idx, end_idx + 1))
+            else:
+                idx = int(part) - 1
+                if idx < 0 or idx >= total:
+                    return None
+                indices.add(idx)
+        return sorted(list(indices))
+    except (ValueError, AttributeError):
+        return None
+
+def download_papers(papers, output_dir, indices=None):
+    """Download papers to output_dir, optionally filtering by indices (0-based)"""
+    selected_papers = [papers[i] for i in indices] if indices else papers
+
     sys.stderr.write("\nDownloading to '%s/'...\n" % output_dir)
-    if len(papers) > 1:
+    if len(selected_papers) > 1:
         sys.stderr.write("Rate limiting: %.1fs delay between downloads\n" % DEFAULT_DOWNLOAD_DELAY)
 
     ok = 0
     captcha_count = 0
 
-    for i, p in enumerate(papers, 1):
-        sys.stderr.write("[%d/%d] " % (i, len(papers)))
+    for i, p in enumerate(selected_papers, 1):
+        sys.stderr.write("[%d/%d] " % (i, len(selected_papers)))
         sys.stderr.flush()
         result = download(p['link'], output_dir)
 
@@ -201,15 +233,15 @@ def download_papers(papers, output_dir):
         elif result:
             ok += 1
 
-        if i < len(papers):
+        if i < len(selected_papers):
             try:
                 time.sleep(DEFAULT_DOWNLOAD_DELAY)
             except KeyboardInterrupt:
                 sys.stderr.write("\n\nDownload cancelled by user.\n")
-                sys.stderr.write("%d/%d saved before cancellation\n" % (ok, len(papers)))
+                sys.stderr.write("%d/%d saved before cancellation\n" % (ok, len(selected_papers)))
                 sys.exit(EXIT_SIGINT)
 
-    sys.stderr.write("\n%d/%d saved" % (ok, len(papers)))
+    sys.stderr.write("\n%d/%d saved" % (ok, len(selected_papers)))
     if captcha_count > 0:
         sys.stderr.write(", %d CAPTCHA blocked\n\n" % captcha_count)
         sys.stderr.write("Rate limit triggered. Try:\n")
@@ -218,6 +250,43 @@ def download_papers(papers, output_dir):
         sys.stderr.write("  - Increase delay: XIV_DOWNLOAD_DELAY=5.0\n")
     sys.stderr.write("\n")
 
+def parse_download_args(args, num_papers):
+    """Parse -d arguments and return (output_dir, indices).
+
+    Returns (None, None) if -d not specified.
+    Exits with error if invalid.
+    """
+    if args is None:
+        return None, None
+
+    output_dir = DEFAULT_PDF_DIR
+    indices_spec = None
+
+    if len(args) == 0:
+        pass  # -d alone: defaults
+    elif len(args) == 1:
+        # Could be DIR or INDICES - check if it looks like indices
+        if re.match(r'^[\d,\-\s]+$', args[0]):
+            indices_spec = args[0]
+        else:
+            output_dir = args[0]
+    elif len(args) == 2:
+        output_dir, indices_spec = args[0], args[1]
+    else:
+        sys.stderr.write("Error: -d accepts at most 2 arguments (DIR and INDICES)\n")
+        sys.exit(1)
+
+    indices = None
+    if indices_spec:
+        indices = parse_indices(indices_spec, num_papers)
+        if indices is None:
+            sys.stderr.write("Error: Invalid index specification '%s'\n" % indices_spec)
+            sys.stderr.write("Use format like: 1,3,5 or 1-5 or 1,3-5,8\n")
+            sys.stderr.write("Valid range: 1-%d\n" % num_papers)
+            sys.exit(1)
+
+    return output_dir, indices
+
 def parse_arguments():
     p = argparse.ArgumentParser(description='xiv', add_help=False,
         formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=30, width=100))
@@ -225,11 +294,11 @@ def parse_arguments():
     p.add_argument('query', nargs='?', default='all', help='search query')
     p.add_argument('-n', type=int, metavar='N', help='max results (default: %d, env: XIV_MAX_RESULTS)' % DEFAULT_RESULTS)
     p.add_argument('-c', nargs='+', metavar='CAT', help='categories (default: %s, env: XIV_CATEGORY)' % DEFAULT_CATEGORY)
-    p.add_argument('-t', type=int, metavar='DAYS', help='papers from last N days (max results %d, use -n to limit further)' % MAX_TIME_RESULTS)
+    p.add_argument('-t', type=int, metavar='T', help='papers from last T days (max results %d, use -n to limit further)' % MAX_TIME_RESULTS)
     p.add_argument('-s', choices=['date', 'updated', 'relevance'], metavar='SORT',
                    help='sort by: date, updated, relevance (default: %s, env: XIV_SORT)' % DEFAULT_SORT)
-    p.add_argument('-d', nargs='?', const=DEFAULT_PDF_DIR, metavar='DIR',
-                   help='download PDFs to DIR (default: %s, env: XIV_PDF_DIR)' % DEFAULT_PDF_DIR)
+    p.add_argument('-d', nargs='*', metavar='ARG',
+                   help='download PDFs; accepts: -d (default dir \'papers\', env: XIV_PDF_DIR), -d DIR, -d 1,3-5, -d DIR 1,3-5')
     p.add_argument('-j', action='store_true', help='output as JSON')
     p.add_argument('-l', action='store_true', help='compact list output')
     p.add_argument('-v', '--version', action='version', version='xiv ' + __version__, help='show version')
@@ -257,8 +326,9 @@ def main():
     else:
         format_detailed(papers)
 
-    if args.d:
-        download_papers(papers, args.d)
+    output_dir, indices = parse_download_args(args.d, len(papers))
+    if output_dir:
+        download_papers(papers, output_dir, indices)
 
 if __name__ == "__main__":
     # Restore default SIGPIPE to avoid traceback on broken pipes

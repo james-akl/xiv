@@ -54,9 +54,10 @@ xiv -h                       # Show help and configuration options
 query              search query
 -n N               max results (default: 10, env: XIV_MAX_RESULTS)
 -c CAT [CAT...]    categories (default: cs.RO, env: XIV_CATEGORY)
--t DAYS            papers from last N days (max results 1000, use -n to limit)
+-t T               papers from last T days (max results 1000, use -n to limit)
 -s SORT            sort: date, updated, relevance (default: date, env: XIV_SORT)
--d [DIR]           download PDFs to DIR (default: papers, env: XIV_PDF_DIR)
+-d [ARG...]        download PDFs; accepts: -d (default dir 'papers', env: XIV_PDF_DIR),
+                   -d DIR, -d 1,3-5, -d DIR 1,3-5
 -j                 output as JSON
 -l                 compact list output
 -v, --version      show version
@@ -74,6 +75,12 @@ xiv "manipulation grasping" -c cs.RO -t 7 -s relevance
 xiv "object detection" -c cs.CV -t 30 -n 5
 # Download latest 3 papers on neural ODEs
 xiv "neural ode" -n 3 -d papers/
+# Download specific papers by index (1st, 3rd, 5th from results)
+xiv "transformer attention" -n 20 -d 1,3,5
+# Download range of papers (papers 1-5 and 8)
+xiv "graph neural networks" -n 20 -d 1-5,8
+# Download selective papers to custom directory
+xiv "reinforcement learning" -n 20 -d rl_papers/ 2,4-7,10
 # Get compact list of recent quantum computing papers
 xiv "quantum computing" -c quant-ph -n 20 -l
 # JSON output piped to `jq` for processing
@@ -115,7 +122,7 @@ For persistence, use System Properties → Environment Variables.
 
 ## Testing
 
-Comprehensive test suite with 46 pytest tests covering all functionality:
+Comprehensive test suite with 103 pytest tests covering all functionality:
 
 ```bash
 # Local testing
@@ -130,11 +137,11 @@ pytest -v                       # Verbose with test names
 
 **Test Coverage:**
 - **Search function**: API parameters, data validation, filtering, sorting
-- **Download function**: PDF retrieval, directory creation, file naming
-- **Helper functions**: Error classification, CAPTCHA detection, retry logic
-- **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-v`)
+- **Download function**: PDF retrieval, directory creation, file naming, selective downloads
+- **Helper functions**: Error classification, CAPTCHA detection, retry logic, index parsing
+- **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-v`) with selective download combinations
 - **Configuration**: Environment variables, constants, defaults
 - **Output formats**: JSON, compact list, standard output
-- **Edge cases**: Empty results, error handling, exit codes, pipe handling
+- **Edge cases**: Empty results, error handling, exit codes, pipe handling, invalid index specifications
 
 Unit tests use real arXiv response data for accurate mocking and require no network. Integration tests make live API calls. All tests must pass on Python 2.7 and 3.3–3.14.
