@@ -123,7 +123,7 @@ pytest                          # Unit tests (mocked, fast)
 pytest --integration            # Integration tests (real arXiv API)
 pytest -v                       # Verbose with test names
 # Multi-version testing
-./run_tests.sh                  # Test Python 2.7, 3.3-3.14 (Docker)
+./run_tests.sh                  # Test Python 2.7, 3.3–3.14 (Docker)
 ./run_tests.sh -v               # Verbose output
 ./run_tests.sh --integration    # Integration mode across all versions
 ```
@@ -132,7 +132,7 @@ pytest -v                       # Verbose with test names
 - **Search function**: API parameters, data validation, filtering, sorting
 - **Download function**: PDF retrieval, directory creation, file naming
 - **Helper functions**: Error classification, CAPTCHA detection, retry logic
-- **CLI arguments**: All flags (-n, -c, -t, -s, -d, -j, -l, -v)
+- **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-v`)
 - **Configuration**: Environment variables, constants, defaults
 - **Output formats**: JSON, compact list, standard output
 - **Edge cases**: Empty results, error handling, exit codes, pipe handling
