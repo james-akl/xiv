@@ -6,20 +6,37 @@ On tagged releases, GitHub Actions builds the Debian package and standalone scri
 
 ### For users
 
-**Debian/Ubuntu:**
+**Latest version:**
+
+Debian/Ubuntu:
 ```bash
 curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv.deb -o xiv.deb
 sudo dpkg -i xiv.deb
 ```
-Uninstall: `sudo dpkg -r xiv` or `sudo apt remove xiv`
 
-**Other systems:**
+Other systems:
 ```bash
 curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv
 chmod +x xiv
 sudo mv xiv /usr/local/bin/
 ```
-Uninstall: `sudo rm /usr/local/bin/xiv`
+
+**Specific version** (e.g., v1.0.1):
+
+Debian/Ubuntu:
+```bash
+curl -fsSL https://github.com/james-akl/xiv/releases/download/v1.0.1/xiv.deb -o xiv.deb
+sudo dpkg -i xiv.deb
+```
+
+Other systems:
+```bash
+curl -fsSL https://github.com/james-akl/xiv/releases/download/v1.0.1/xiv -o xiv
+chmod +x xiv
+sudo mv xiv /usr/local/bin/
+```
+
+Uninstall: `sudo dpkg -r xiv` (Debian) or `sudo rm /usr/local/bin/xiv` (other)
 
 ### Releasing
 

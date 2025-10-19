@@ -15,7 +15,7 @@ jobs:
 
       - name: Build package
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${GITHUB_REF#refs/tags/}
           mkdir -p build/DEBIAN build/usr/bin build/usr/share/doc/xiv
 
           cp dist/debian/DEBIAN/* build/DEBIAN/
@@ -25,7 +25,7 @@ jobs:
 
           chmod +x build/DEBIAN/postinst build/usr/bin/xiv
           dpkg-deb --build build xiv_${VERSION}_all.deb
-          ln -s xiv_${VERSION}_all.deb xiv.deb
+          cp xiv_${VERSION}_all.deb xiv.deb
 
           cp xiv.py xiv
           chmod +x xiv
@@ -34,20 +34,21 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
+            xiv_*.deb
             xiv.deb
             xiv
           body: |
             **Debian/Ubuntu:**
             ```bash
-            curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv.deb -o xiv.deb
+            curl -fsSL https://github.com/james-akl/xiv/releases/download/${{ github.ref_name }}/xiv_${{ github.ref_name }}.deb -o xiv.deb
             sudo dpkg -i xiv.deb
             ```
-            Uninstall: `sudo dpkg -r xiv` or `sudo apt remove xiv`
 
             **Linux/macOS/WSL:**
             ```bash
-            curl -fsSL https://github.com/james-akl/xiv/releases/latest/download/xiv -o xiv
+            curl -fsSL https://github.com/james-akl/xiv/releases/download/${{ github.ref_name }}/xiv -o xiv
             chmod +x xiv
             sudo mv xiv /usr/local/bin/
             ```
-            Uninstall: `sudo rm /usr/local/bin/xiv`
+
+            > Use `latest` instead of `${{ github.ref_name }}` in the URL to get the newest version.
