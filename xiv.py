@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """xiv - Search and download papers from arXiv"""
-import argparse, sys, os, json, re, time
+import argparse, sys, os, json, re, time, signal
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
@@ -240,6 +240,12 @@ def main():
         download_papers(papers, args.d)
 
 if __name__ == "__main__":
+    # Ignore SIGPIPE for clean broken pipe handling (Unix/Linux)
+    try:
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    except AttributeError:
+        pass  # Windows doesn't have SIGPIPE
+
     try:
         main()
     except KeyboardInterrupt:

@@ -115,7 +115,7 @@ For persistence, use System Properties → Environment Variables.
 
 ## Testing
 
-Comprehensive test suite with 45 pytest tests covering all functionality:
+Comprehensive test suite with 46 pytest tests covering all functionality:
 
 ```bash
 # Local testing
@@ -135,6 +135,6 @@ pytest -v                       # Verbose with test names
 - **CLI arguments**: All flags (-n, -c, -t, -s, -d, -j, -l, -v)
 - **Configuration**: Environment variables, constants, defaults
 - **Output formats**: JSON, compact list, standard output
-- **Edge cases**: Empty results, error handling, exit codes
+- **Edge cases**: Empty results, error handling, exit codes, pipe handling
 
 Unit tests use real arXiv response data for accurate mocking and require no network. Integration tests make live API calls. All tests must pass on Python 2.7 and 3.3–3.14.

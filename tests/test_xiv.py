@@ -524,3 +524,19 @@ class TestEdgeCases:
                 sys.stderr.write("\n\nInterrupted.\n")
                 sys.exit(130)
         assert exc_info.value.code == 130
+
+    def test_broken_pipe_handling(self):
+        """Verify broken pipe is handled cleanly via subprocess"""
+        import subprocess
+        # Run xiv and close stdout immediately to simulate broken pipe
+        proc = subprocess.Popen(
+            [sys.executable, 'xiv.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        proc.stdout.close()
+        proc.wait()
+        stderr = proc.stderr.read().decode('utf-8')
+        # Should exit without Python tracebacks
+        assert 'Traceback' not in stderr
+        assert 'BrokenPipeError' not in stderr
