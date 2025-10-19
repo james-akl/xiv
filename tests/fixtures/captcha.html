@@ -1,8 +1,46 @@
 <!DOCTYPE html>
-<html>
-<head><title>arXiv CAPTCHA</title></head>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>arXiv.org - Automated Access Detected</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body{font-family:Arial,sans-serif;margin:40px;}</style>
+</head>
 <body>
-<h1>Please verify you are not a robot</h1>
-<p>You have exceeded the download limit. Please wait before trying again.</p>
+    <h1>Automated Access Detected</h1>
+    <p>We have detected unusual download activity from your IP address. To continue accessing arXiv, please complete the verification below.</p>
+
+    <div class="captcha-container">
+        <h2>Please verify you are human</h2>
+        <p>This extra step helps us prevent automated scraping and ensures fair access to arXiv for all users.</p>
+
+        <form action="/verify" method="post">
+            <div class="g-recaptcha" data-sitekey="dummy-key"></div>
+            <button type="submit">Verify and Continue</button>
+        </form>
+    </div>
+
+    <div class="info">
+        <h3>Why am I seeing this?</h3>
+        <ul>
+            <li>You may have downloaded papers too quickly</li>
+            <li>Your IP address may be shared with automated systems</li>
+            <li>Network configuration may appear suspicious</li>
+        </ul>
+
+        <h3>How to avoid this in the future:</h3>
+        <ul>
+            <li>Limit download requests to one every 3 seconds</li>
+            <li>Use the official arXiv API with proper rate limiting</li>
+            <li>Avoid parallel downloads from the same IP</li>
+        </ul>
+    </div>
+
+    <footer>
+        <p>arXiv is a free distribution service and an open-access archive for scholarly articles.</p>
+        <p>For more information, visit <a href="https://arxiv.org/help">arXiv Help</a></p>
+    </footer>
+
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </body>
 </html>

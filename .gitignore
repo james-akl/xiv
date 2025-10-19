@@ -3,6 +3,7 @@
 __pycache__/
 .pytest_cache/
 .cache
+.coverage
 
 # Ignore downloaded papers
 papers/
