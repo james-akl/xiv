@@ -15,7 +15,7 @@ jobs:
 
       - name: Build package
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${GITHUB_REF#refs/tags/}
           mkdir -p build/DEBIAN build/usr/bin build/usr/share/doc/xiv
 
           cp dist/debian/DEBIAN/* build/DEBIAN/
@@ -40,7 +40,7 @@ jobs:
           body: |
             **Debian/Ubuntu:**
             ```bash
-            curl -fsSL https://github.com/james-akl/xiv/releases/download/${{ github.ref_name }}/xiv_*.deb -o xiv.deb
+            curl -fsSL https://github.com/james-akl/xiv/releases/download/${{ github.ref_name }}/xiv_${{ github.ref_name }}.deb -o xiv.deb
             sudo dpkg -i xiv.deb
             ```
 
