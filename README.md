@@ -105,7 +105,7 @@ export XIV_SORT=relevance                # Default sort order (date, updated, re
 export XIV_PDF_DIR=papers                # Download directory
 export XIV_DOWNLOAD_DELAY=3.0            # Seconds between downloads (range: 0.0-60.0)
 export XIV_RETRY_ATTEMPTS=3              # Retry attempts for failed requests (range: 1-10)
-export XIV_MAX_AUTHORS=3       # Number of authors before "et al." (range: 1-20)
+export XIV_MAX_AUTHORS=3                 # Number of authors before "et al." (range: 1-20)
 ```
 
 For persistence, add to `~/.bashrc`, `~/.zshrc`, or otherwise.
@@ -130,7 +130,7 @@ xiv -e  # Display all settings with validation ranges
 
 **Notes:**
 - Invalid values trigger warnings and fall back to defaults
-- `XIV_DOWNLOAD_DELAY < 3.0` violates API limits and risks blocking
+- `XIV_DOWNLOAD_DELAY < 3.0` can violate API limits and risks blocking
 - All environment variables are optional
 
 ## Testing
