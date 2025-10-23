@@ -60,6 +60,7 @@ query              search query
                    -d DIR, -d 1,3-5, -d DIR 1,3-5
 -j                 output as JSON
 -l                 compact list output
+-e, --env          show environment configuration and exit
 -v, --version      show version
 -h                 show help
 ```
@@ -94,16 +95,17 @@ xiv "computer vision" -t 7 -l | wc -l  # Count recent CV papers
 
 ## Environment Variables
 
-Configure defaults via environment variables:
+Configure defaults via environment variables. All values are validated on startup with clear error messages.
 
 **Linux/macOS:**
 ```bash
-export XIV_MAX_RESULTS=20         # Default number of results
-export XIV_CATEGORY='cs.AI cs.CV' # Default categories
-export XIV_SORT=relevance         # Default sort order
-export XIV_PDF_DIR=papers         # Download directory
-export XIV_DOWNLOAD_DELAY=3.0     # Seconds between downloads
-export XIV_RETRY_ATTEMPTS=3       # Retry attempts for failed requests
+export XIV_MAX_RESULTS=20                # Default number of results (range: 1-2000)
+export XIV_CATEGORY='cs.AI cs.CV'        # Default categories
+export XIV_SORT=relevance                # Default sort order (date, updated, relevance)
+export XIV_PDF_DIR=papers                # Download directory
+export XIV_DOWNLOAD_DELAY=3.0            # Seconds between downloads (range: 0.0-60.0)
+export XIV_RETRY_ATTEMPTS=3              # Retry attempts for failed requests (range: 1-10)
+export XIV_MAX_AUTHORS=3       # Number of authors before "et al." (range: 1-20)
 ```
 
 For persistence, add to `~/.bashrc`, `~/.zshrc`, or otherwise.
@@ -116,13 +118,24 @@ $env:XIV_SORT="relevance"
 $env:XIV_PDF_DIR="papers"
 $env:XIV_DOWNLOAD_DELAY=3.0
 $env:XIV_RETRY_ATTEMPTS=3
+$env:XIV_MAX_AUTHORS=3
 ```
 
 For persistence, use System Properties → Environment Variables.
 
+**View Current Configuration:**
+```bash
+xiv -e  # Display all settings with validation ranges
+```
+
+**Notes:**
+- Invalid values trigger warnings and fall back to defaults
+- `XIV_DOWNLOAD_DELAY < 3.0` violates API limits and risks blocking
+- All environment variables are optional
+
 ## Testing
 
-Comprehensive test suite with 103 pytest tests covering all functionality:
+Comprehensive test suite with 125 pytest tests covering all functionality:
 
 ```bash
 # Local testing

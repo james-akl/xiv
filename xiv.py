@@ -31,17 +31,68 @@ SORTS = {'date': 'submittedDate', 'updated': 'lastUpdatedDate', 'relevance': 're
 # Constants
 MIN_VALID_PDF_SIZE = 100000  # PDFs are typically >100KB; smaller files are likely CAPTCHA pages
 CAPTCHA_CHECK_BYTES = 1024   # Read first 1KB to detect HTML CAPTCHA pages
-MAX_AUTHORS_DISPLAYED = 3    # Show first N authors, rest as "et al."
 DATE_PREFIX_LENGTH = 10      # YYYY-MM-DD format
 MAX_TIME_RESULTS = 1000      # arXiv API limit for time-based queries
 EXIT_SIGINT = 130            # POSIX exit code for SIGINT (128 + 2)
 
-DEFAULT_RESULTS = int(os.getenv('XIV_MAX_RESULTS', '10'))
+# Safe environment variable parsing with validation
+def getenv_int(var, default, min_val=None, max_val=None):
+    """Parse integer env var with optional range validation"""
+    val_str = os.getenv(var)
+    if not val_str:
+        return default
+    try:
+        val = int(val_str)
+        if min_val is not None and val < min_val:
+            sys.stderr.write("Warning: %s=%d is below minimum %d, using %d\n" % (var, val, min_val, default))
+            return default
+        if max_val is not None and val > max_val:
+            sys.stderr.write("Warning: %s=%d exceeds maximum %d, using %d\n" % (var, val, max_val, default))
+            return default
+        return val
+    except ValueError:
+        sys.stderr.write("Warning: %s='%s' is not a valid integer, using default %d\n" % (var, val_str, default))
+        return default
+
+def getenv_float(var, default, min_val=None, max_val=None):
+    """Parse float env var with optional range validation"""
+    val_str = os.getenv(var)
+    if not val_str:
+        return default
+    try:
+        val = float(val_str)
+        if min_val is not None and val < min_val:
+            sys.stderr.write("Warning: %s=%.1f is below minimum %.1f, using %.1f\n" % (var, val, min_val, default))
+            return default
+        if max_val is not None and val > max_val:
+            sys.stderr.write("Warning: %s=%.1f exceeds maximum %.1f, using %.1f\n" % (var, val, max_val, default))
+            return default
+        return val
+    except ValueError:
+        sys.stderr.write("Warning: %s='%s' is not a valid number, using default %.1f\n" % (var, val_str, default))
+        return default
+
+def getenv_str(var, default, valid_values=None):
+    """Parse string env var with optional validation"""
+    val = os.getenv(var, default)
+    if valid_values and val not in valid_values:
+        sys.stderr.write("Warning: %s='%s' is not valid (use: %s), using default '%s'\n" %
+                        (var, val, ', '.join(valid_values), default))
+        return default
+    return val
+
+# Configuration with validation
+DEFAULT_RESULTS = getenv_int('XIV_MAX_RESULTS', 10, min_val=1, max_val=2000)
 DEFAULT_CATEGORY = os.getenv('XIV_CATEGORY', 'cs.RO')
-DEFAULT_SORT = os.getenv('XIV_SORT', 'date')
+DEFAULT_SORT = getenv_str('XIV_SORT', 'date', valid_values=['date', 'updated', 'relevance'])
 DEFAULT_PDF_DIR = os.getenv('XIV_PDF_DIR', 'papers')
-DEFAULT_DOWNLOAD_DELAY = float(os.getenv('XIV_DOWNLOAD_DELAY', '3.0'))
-DEFAULT_RETRY_ATTEMPTS = int(os.getenv('XIV_RETRY_ATTEMPTS', '3'))
+DEFAULT_DOWNLOAD_DELAY = getenv_float('XIV_DOWNLOAD_DELAY', 3.0, min_val=0.0, max_val=60.0)
+DEFAULT_RETRY_ATTEMPTS = getenv_int('XIV_RETRY_ATTEMPTS', 3, min_val=1, max_val=10)
+DEFAULT_MAX_AUTHORS = getenv_int('XIV_MAX_AUTHORS', 3, min_val=1, max_val=20)
+
+# Warn about potential arXiv policy violations
+if DEFAULT_DOWNLOAD_DELAY < 3.0 and os.getenv('XIV_DOWNLOAD_DELAY'):
+    sys.stderr.write("Warning: XIV_DOWNLOAD_DELAY < 3.0 violates API limits and risks blocking\n")
 
 def is_retryable_error(error):
     err_str = str(error).lower()
@@ -100,8 +151,8 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
             continue
 
         authors = [a.find('a:name', NS).text for a in entry.findall('a:author', NS)]
-        auth = ", ".join(authors[:MAX_AUTHORS_DISPLAYED])
-        if len(authors) > MAX_AUTHORS_DISPLAYED:
+        auth = ", ".join(authors[:DEFAULT_MAX_AUTHORS])
+        if len(authors) > DEFAULT_MAX_AUTHORS:
             auth += " et al. (%d)" % len(authors)
 
         papers.append({
@@ -250,6 +301,34 @@ def download_papers(papers, output_dir, indices=None):
         sys.stderr.write("  - Increase delay: XIV_DOWNLOAD_DELAY=5.0\n")
     sys.stderr.write("\n")
 
+def show_config():
+    """Display current configuration and exit"""
+    print("Configuration:")
+    print("")
+    print("  XIV_MAX_RESULTS     = %-10s  %s" % (DEFAULT_RESULTS,
+          "(default)" if not os.getenv('XIV_MAX_RESULTS') else ""))
+    print("  XIV_CATEGORY        = %-10s  %s" % (DEFAULT_CATEGORY,
+          "(default)" if not os.getenv('XIV_CATEGORY') else ""))
+    print("  XIV_SORT            = %-10s  %s" % (DEFAULT_SORT,
+          "(default)" if not os.getenv('XIV_SORT') else ""))
+    print("  XIV_PDF_DIR         = %-10s  %s" % (DEFAULT_PDF_DIR,
+          "(default)" if not os.getenv('XIV_PDF_DIR') else ""))
+    print("  XIV_DOWNLOAD_DELAY  = %-10s  %s" % (DEFAULT_DOWNLOAD_DELAY,
+          "(default)" if not os.getenv('XIV_DOWNLOAD_DELAY') else ""))
+    print("  XIV_RETRY_ATTEMPTS  = %-10s  %s" % (DEFAULT_RETRY_ATTEMPTS,
+          "(default)" if not os.getenv('XIV_RETRY_ATTEMPTS') else ""))
+    print("  XIV_MAX_AUTHORS     = %-10s  %s" % (DEFAULT_MAX_AUTHORS,
+          "(default)" if not os.getenv('XIV_MAX_AUTHORS') else ""))
+    print("")
+    print("Constraints:")
+    print("")
+    print("  XIV_MAX_RESULTS     1-2000")
+    print("  XIV_SORT            date | updated | relevance")
+    print("  XIV_DOWNLOAD_DELAY  0.0-60.0  (< 3.0 violates API limits, risks blocking)")
+    print("  XIV_RETRY_ATTEMPTS  1-10")
+    print("  XIV_MAX_AUTHORS     1-20")
+    sys.exit(0)
+
 def parse_download_args(args, num_papers):
     """Parse -d arguments and return (output_dir, indices).
 
@@ -301,6 +380,7 @@ def parse_arguments():
                    help='download PDFs; accepts: -d (default dir \'papers\', env: XIV_PDF_DIR), -d DIR, -d 1,3-5, -d DIR 1,3-5')
     p.add_argument('-j', action='store_true', help='output as JSON')
     p.add_argument('-l', action='store_true', help='compact list output')
+    p.add_argument('-e', '--env', action='store_true', help='show environment configuration and exit')
     p.add_argument('-v', '--version', action='version', version='xiv ' + __version__, help='show version')
     p.add_argument('-h', action='help', help='show this help')
 
@@ -308,6 +388,20 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+
+    # Handle -e/--env flag
+    if args.env:
+        show_config()
+
+    # Validate CLI arguments
+    if args.n is not None and args.n < 1:
+        sys.stderr.write("Error: -n must be at least 1\n")
+        sys.exit(1)
+    if args.n is not None and args.n > 2000:
+        sys.stderr.write("Warning: -n > 2000 may be excessive; arXiv may limit results\n")
+    if args.t is not None and args.t < 1:
+        sys.stderr.write("Error: -t must be at least 1\n")
+        sys.exit(1)
 
     since = (datetime.now() - timedelta(days=args.t)).strftime('%Y-%m-%d') if args.t else None
     max_results = args.n if args.n else (MAX_TIME_RESULTS if args.t else DEFAULT_RESULTS)

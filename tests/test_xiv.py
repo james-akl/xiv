@@ -681,3 +681,140 @@ class TestParseDownloadArgs:
 # Configuration tests
 def test_sorts_mapping(xiv):
     assert xiv.SORTS == {'date': 'submittedDate', 'updated': 'lastUpdatedDate', 'relevance': 'relevance'}
+
+
+# Environment variable validation tests
+class TestEnvironmentValidation:
+    @pytest.mark.parametrize("var,value,expected_val,should_warn", [
+        ('XIV_MAX_RESULTS', '5', 5, False),
+        ('XIV_MAX_RESULTS', 'invalid', 10, True),
+        ('XIV_MAX_RESULTS', '-5', 10, True),
+        ('XIV_MAX_RESULTS', '5000', 10, True),
+        ('XIV_DOWNLOAD_DELAY', '5.0', 5.0, False),
+        ('XIV_DOWNLOAD_DELAY', 'abc', 3.0, True),
+        ('XIV_DOWNLOAD_DELAY', '100.0', 3.0, True),
+        ('XIV_RETRY_ATTEMPTS', '5', 5, False),
+        ('XIV_RETRY_ATTEMPTS', '0', 3, True),
+        ('XIV_RETRY_ATTEMPTS', '20', 3, True),
+        ('XIV_MAX_AUTHORS', '5', 5, False),
+        ('XIV_MAX_AUTHORS', '0', 3, True),
+        ('XIV_SORT', 'relevance', 'relevance', False),
+        ('XIV_SORT', 'invalid', 'date', True),
+    ])
+    def test_env_var_validation(self, monkeypatch, var, value, expected_val, should_warn, capsys):
+        monkeypatch.setenv(var, value)
+
+        import xiv
+        if sys.version_info >= (3, 4):
+            import importlib
+            importlib.reload(xiv)
+        elif sys.version_info[0] >= 3:
+            import imp
+            imp.reload(xiv)
+        else:
+            reload(xiv)  # noqa: F821
+
+        attr_map = {
+            'XIV_MAX_RESULTS': 'DEFAULT_RESULTS',
+            'XIV_DOWNLOAD_DELAY': 'DEFAULT_DOWNLOAD_DELAY',
+            'XIV_RETRY_ATTEMPTS': 'DEFAULT_RETRY_ATTEMPTS',
+            'XIV_MAX_AUTHORS': 'DEFAULT_MAX_AUTHORS',
+            'XIV_SORT': 'DEFAULT_SORT',
+        }
+        attr = attr_map[var]
+        assert getattr(xiv, attr) == expected_val
+
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        if should_warn:
+            assert 'Warning' in stderr
+
+    def test_download_delay_policy_warning(self, monkeypatch, capsys):
+        monkeypatch.setenv('XIV_DOWNLOAD_DELAY', '1.0')
+
+        import xiv
+        if sys.version_info >= (3, 4):
+            import importlib
+            importlib.reload(xiv)
+        elif sys.version_info[0] >= 3:
+            import imp
+            imp.reload(xiv)
+        else:
+            reload(xiv)  # noqa: F821
+
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert 'API limits' in stderr and 'blocking' in stderr
+
+
+# CLI validation tests
+class TestCLIValidation:
+    def test_negative_max_results_error(self, xiv, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-n', '-5'])
+        with pytest.raises(SystemExit) as e:
+            xiv.main()
+        assert e.value.code == 1
+
+    def test_zero_max_results_error(self, xiv, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-n', '0'])
+        with pytest.raises(SystemExit) as e:
+            xiv.main()
+        assert e.value.code == 1
+
+    def test_negative_time_filter_error(self, xiv, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-t', '-1'])
+        with pytest.raises(SystemExit) as e:
+            xiv.main()
+        assert e.value.code == 1
+
+    def test_zero_time_filter_error(self, xiv, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-t', '0'])
+        with pytest.raises(SystemExit) as e:
+            xiv.main()
+        assert e.value.code == 1
+
+    def test_excessive_max_results_warning(self, xiv, monkeypatch, capsys):
+        monkeypatch.setattr(xiv, 'search', lambda *a, **k: [])
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-n', '3000'])
+        with pytest.raises(SystemExit) as e:
+            xiv.main()
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert 'Warning' in stderr and '2000' in stderr
+
+
+# Config display tests
+class TestConfig:
+    def test_config_displays_settings(self, xiv, monkeypatch, capsys):
+        monkeypatch.setattr(sys, 'argv', ['xiv', '-e'])
+        with pytest.raises(SystemExit) as e:
+            xiv.main()
+        assert e.value.code == 0
+
+        out = capsys.readouterr()
+        output = out[0] if isinstance(out, tuple) else out.out
+        assert 'XIV_MAX_RESULTS' in output
+        assert 'XIV_DOWNLOAD_DELAY' in output
+        assert 'violates API limits' in output
+
+    def test_config_shows_custom_values(self, xiv, monkeypatch, capsys):
+        monkeypatch.setenv('XIV_MAX_RESULTS', '50')
+        monkeypatch.setattr(sys, 'argv', ['xiv', '-e'])
+
+        import xiv as xiv_module
+        if sys.version_info >= (3, 4):
+            import importlib
+            importlib.reload(xiv_module)
+        elif sys.version_info[0] >= 3:
+            import imp
+            imp.reload(xiv_module)
+        else:
+            reload(xiv_module)  # noqa: F821
+
+        with pytest.raises(SystemExit) as e:
+            xiv_module.main()
+        assert e.value.code == 0
+
+        out = capsys.readouterr()
+        output = out[0] if isinstance(out, tuple) else out.out
+        assert '50' in output
