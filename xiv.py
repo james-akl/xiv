@@ -90,6 +90,45 @@ DEFAULT_DOWNLOAD_DELAY = getenv_float('XIV_DOWNLOAD_DELAY', 3.0, min_val=0.0, ma
 DEFAULT_RETRY_ATTEMPTS = getenv_int('XIV_RETRY_ATTEMPTS', 3, min_val=1, max_val=10)
 DEFAULT_MAX_AUTHORS = getenv_int('XIV_MAX_AUTHORS', 3, min_val=1, max_val=20)
 
+# Known arXiv categories (updated 2025-10-26)
+ARXIV_CATEGORIES = {
+    'cs.AI', 'cs.AR', 'cs.CC', 'cs.CE', 'cs.CG', 'cs.CL', 'cs.CR', 'cs.CV', 'cs.CY', 'cs.DB',
+    'cs.DC', 'cs.DL', 'cs.DM', 'cs.DS', 'cs.ET', 'cs.FL', 'cs.GL', 'cs.GR', 'cs.GT', 'cs.HC',
+    'cs.IR', 'cs.IT', 'cs.LG', 'cs.LO', 'cs.MA', 'cs.MM', 'cs.MS', 'cs.NA', 'cs.NE', 'cs.NI',
+    'cs.OH', 'cs.OS', 'cs.PF', 'cs.PL', 'cs.RO', 'cs.SC', 'cs.SD', 'cs.SE', 'cs.SI', 'cs.SY',
+    'econ.EM', 'econ.GN', 'econ.TH', 'eess.AS', 'eess.IV', 'eess.SP', 'eess.SY',
+    'math.AC', 'math.AG', 'math.AP', 'math.AT', 'math.CA', 'math.CO', 'math.CT', 'math.CV',
+    'math.DG', 'math.DS', 'math.FA', 'math.GM', 'math.GN', 'math.GR', 'math.GT', 'math.HO',
+    'math.IT', 'math.KT', 'math.LO', 'math.MG', 'math.MP', 'math.NA', 'math.NT', 'math.OA',
+    'math.OC', 'math.PR', 'math.QA', 'math.RA', 'math.RT', 'math.SG', 'math.SP', 'math.ST',
+    'astro-ph', 'astro-ph.CO', 'astro-ph.EP', 'astro-ph.GA', 'astro-ph.HE', 'astro-ph.IM', 'astro-ph.SR',
+    'cond-mat.dis-nn', 'cond-mat.mes-hall', 'cond-mat.mtrl-sci', 'cond-mat.other',
+    'cond-mat.quant-gas', 'cond-mat.soft', 'cond-mat.stat-mech', 'cond-mat.str-el', 'cond-mat.supr-con',
+    'gr-qc', 'hep-ex', 'hep-lat', 'hep-ph', 'hep-th', 'math-ph', 'nlin.AO', 'nlin.CD', 'nlin.CG',
+    'nlin.PS', 'nlin.SI', 'nucl-ex', 'nucl-th', 'physics.acc-ph', 'physics.ao-ph', 'physics.app-ph',
+    'physics.atm-clus', 'physics.atom-ph', 'physics.bio-ph', 'physics.chem-ph', 'physics.class-ph',
+    'physics.comp-ph', 'physics.data-an', 'physics.ed-ph', 'physics.flu-dyn', 'physics.gen-ph',
+    'physics.geo-ph', 'physics.hist-ph', 'physics.ins-det', 'physics.med-ph', 'physics.optics',
+    'physics.plasm-ph', 'physics.pop-ph', 'physics.soc-ph', 'physics.space-ph', 'quant-ph',
+    'q-bio.BM', 'q-bio.CB', 'q-bio.GN', 'q-bio.MN', 'q-bio.NC', 'q-bio.OT', 'q-bio.PE', 'q-bio.QM',
+    'q-bio.SC', 'q-bio.TO', 'q-fin.CP', 'q-fin.EC', 'q-fin.GN', 'q-fin.MF', 'q-fin.PM', 'q-fin.PR',
+    'q-fin.RM', 'q-fin.ST', 'q-fin.TR', 'stat.AP', 'stat.CO', 'stat.ME', 'stat.ML', 'stat.OT', 'stat.TH'
+}
+
+def validate_category(cat, source=''):
+    """Check if category is known to arXiv. Returns True if valid, warns if unknown."""
+    cat = cat.strip()
+    if cat in ARXIV_CATEGORIES:
+        return True
+    # Warn but allow unknown categories (may be new or archive-level)
+    src = (" (%s)" % source) if source else ''
+    sys.stderr.write("Warning: Unrecognized category '%s'%s - may be new or invalid\n" % (cat, src))
+    return True
+
+if os.getenv('XIV_CATEGORY'):
+    for cat in DEFAULT_CATEGORY.split():
+        validate_category(cat, 'XIV_CATEGORY')
+
 # Warn about potential arXiv policy violations
 if DEFAULT_DOWNLOAD_DELAY < 3.0 and os.getenv('XIV_DOWNLOAD_DELAY'):
     sys.stderr.write("Warning: XIV_DOWNLOAD_DELAY < 3.0 violates API limits and risks blocking\n")
@@ -174,8 +213,12 @@ def is_captcha(path):
 
 def download(link, output_dir):
     """Download single paper PDF with retry logic. Returns True, False, or 'captcha'"""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    try:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+    except (OSError, IOError) as e:
+        sys.stderr.write("Error: Cannot create directory '%s': %s\n" % (output_dir, e))
+        return False
 
     paper_id = link.split('/')[-1]
     path = os.path.join(output_dir, paper_id.replace('/', '-') + '.pdf')
@@ -329,6 +372,18 @@ def show_config():
     print("  XIV_MAX_AUTHORS     1-20")
     sys.exit(0)
 
+def validate_download_dir(output_dir, source=''):
+    """Validate directory can be created/written. Exits on error."""
+    abs_dir = os.path.abspath(output_dir)
+    parent = os.path.dirname(abs_dir) or '.'
+    src = (" (%s)" % source) if source else ''
+    if not os.path.exists(parent):
+        sys.stderr.write("Error: Parent directory does not exist%s: %s\n" % (src, parent))
+        sys.exit(1)
+    if not os.access(parent, os.W_OK):
+        sys.stderr.write("Error: No write permission%s for: %s\n" % (src, parent))
+        sys.exit(1)
+
 def parse_download_args(args, num_papers):
     """Parse -d arguments and return (output_dir, indices).
 
@@ -354,6 +409,8 @@ def parse_download_args(args, num_papers):
     else:
         sys.stderr.write("Error: -d accepts at most 2 arguments (DIR and INDICES)\n")
         sys.exit(1)
+
+    validate_download_dir(output_dir, '-d')
 
     indices = None
     if indices_spec:
@@ -402,6 +459,19 @@ def main():
     if args.t is not None and args.t < 1:
         sys.stderr.write("Error: -t must be at least 1\n")
         sys.exit(1)
+
+    # Validate categories (warns for unknown, doesn't block)
+    if args.c:
+        for cat in args.c:
+            validate_category(cat, '-c')
+
+    # Early directory validation (before expensive search)
+    if args.d is not None:
+        # Extract directory from args (could be DIR or INDICES in first arg)
+        dir_to_validate = DEFAULT_PDF_DIR
+        if args.d and not re.match(r'^[\d,\-\s]+$', args.d[0]):
+            dir_to_validate = args.d[0]
+        validate_download_dir(dir_to_validate, '-d')
 
     since = (datetime.now() - timedelta(days=args.t)).strftime('%Y-%m-%d') if args.t else None
     max_results = args.n if args.n else (MAX_TIME_RESULTS if args.t else DEFAULT_RESULTS)

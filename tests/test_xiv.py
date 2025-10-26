@@ -677,6 +677,11 @@ class TestParseDownloadArgs:
             xiv.parse_download_args(['1,999'], 5)
         assert e.value.code == 1
 
+    def test_exits_on_nonexistent_parent_dir(self, xiv):
+        with pytest.raises(SystemExit) as e:
+            xiv.parse_download_args(['/nonexistent_parent/papers'], 5)
+        assert e.value.code == 1
+
 
 # Configuration tests
 def test_sorts_mapping(xiv):
@@ -746,6 +751,24 @@ class TestEnvironmentValidation:
         stderr = out[1] if isinstance(out, tuple) else out.err
         assert 'API limits' in stderr and 'blocking' in stderr
 
+    @pytest.mark.parametrize("category,known", [
+        ('cs.AI', True), ('math.CO', True), ('quant-ph', True), ('stat.ML', True),
+        ('invalid_cat', False), ('new_category', False)
+    ])
+    def test_category_set(self, xiv, category, known):
+        """Known arXiv categories are in ARXIV_CATEGORIES"""
+        assert (category in xiv.ARXIV_CATEGORIES) == known
+
+    @pytest.mark.parametrize("category,should_warn", [
+        ('cs.AI', False), ('invalid_cat', True)
+    ])
+    def test_category_validation_warns(self, xiv, capsys, category, should_warn):
+        """Unknown categories trigger warning"""
+        assert xiv.validate_category(category) is True
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert ('Unrecognized category' in stderr) == should_warn
+
 
 # CLI validation tests
 class TestCLIValidation:
@@ -781,6 +804,15 @@ class TestCLIValidation:
         out = capsys.readouterr()
         stderr = out[1] if isinstance(out, tuple) else out.err
         assert 'Warning' in stderr and '2000' in stderr
+
+    def test_unknown_category_warns(self, xiv, monkeypatch, capsys):
+        """Unknown categories trigger warning in CLI"""
+        monkeypatch.setattr(xiv, 'search', lambda *a, **k: [])
+        monkeypatch.setattr(sys, 'argv', ['xiv', 'test', '-c', 'unknown_cat', '-n', '1'])
+        with pytest.raises(SystemExit):
+            xiv.main()
+        out = capsys.readouterr()
+        assert 'Unrecognized category' in (out[1] if isinstance(out, tuple) else out.err)
 
 
 # Config display tests

@@ -130,12 +130,13 @@ xiv -e  # Display all settings with validation ranges
 
 **Notes:**
 - Invalid values trigger warnings and fall back to defaults
-- `XIV_DOWNLOAD_DELAY < 3.0` can violate API limits and risks blocking
+- `XIV_DOWNLOAD_DELAY < 3.0` violates API limits and risks blocking
+- Unknown categories trigger warnings but don't block execution
 - All environment variables are optional
 
 ## Testing
 
-Comprehensive test suite with 125 pytest tests covering all functionality:
+Comprehensive test suite with 135 pytest tests covering all functionality:
 
 ```bash
 # Local testing
@@ -153,7 +154,8 @@ pytest -v                       # Verbose with test names
 - **Download function**: PDF retrieval, directory creation, file naming, selective downloads
 - **Helper functions**: Error classification, CAPTCHA detection, retry logic, index parsing
 - **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-v`) with selective download combinations
-- **Configuration**: Environment variables, constants, defaults
+- **Configuration**: Environment variables, constants, defaults, validation with warnings
+- **Input validation**: Category format validation, range checks, policy warnings
 - **Output formats**: JSON, compact list, standard output
 - **Edge cases**: Empty results, error handling, exit codes, pipe handling, invalid index specifications
 
