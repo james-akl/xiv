@@ -136,7 +136,7 @@ xiv -e  # Display all settings with validation ranges
 
 ## Testing
 
-Comprehensive test suite with 137 pytest tests covering all functionality:
+Comprehensive test suite with 140 pytest tests covering all functionality:
 
 ```bash
 # Local testing
