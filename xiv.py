@@ -158,7 +158,6 @@ def retry_with_backoff(operation, error_msg_prefix):
             else:
                 sys.stderr.write("Error: %s\n" % e)
                 return None
-    return None
 
 def search(query, max_results=10, sort='submittedDate', since=None, categories=None):
     """Query arXiv API and return list of matching papers"""

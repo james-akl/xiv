@@ -86,6 +86,12 @@ class TestSearch:
         papers = xiv.search('test', max_results=10, since='2026-01-01')
         assert papers == []
 
+    def test_returns_empty_list_when_retry_fails(self, xiv, monkeypatch):
+        """Test search() returns [] when API is completely unavailable"""
+        monkeypatch.setattr(xiv, 'retry_with_backoff', lambda op, msg: None)
+        result = xiv.search('test')
+        assert result == []
+
 
 # Download function tests
 class TestDownload:
@@ -123,6 +129,33 @@ class TestDownload:
         result = self.xiv.download('http://arxiv.org/abs/2510.14968v1', self.tmpdir)
         assert result is True
         assert os.path.exists(os.path.join(self.tmpdir, '2510.14968v1.pdf'))
+
+    def test_handles_directory_creation_failure(self, monkeypatch, capsys):
+        """Test download() handles OSError when creating directory"""
+        def mock_makedirs(path):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr(os, 'makedirs', mock_makedirs)
+        result = self.xiv.download('http://arxiv.org/abs/1234.5678', '/nonexistent/deeply/nested/path')
+        assert result is False
+        captured = capsys.readouterr()
+        assert 'Cannot create directory' in captured.err
+
+    def test_cleans_up_file_on_retry_failure(self, monkeypatch, capsys):
+        """Test that failed downloads clean up partial files"""
+        call_count = [0]
+
+        def mock_urlopen(req):
+            call_count[0] += 1
+            raise Exception("HTTP Error 503")
+
+        monkeypatch.setattr(self.xiv, 'urlopen', mock_urlopen)
+        result = self.xiv.download('http://arxiv.org/abs/1234.5678', self.tmpdir)
+
+        assert result is False
+        # Verify file was cleaned up after each failed attempt
+        assert not os.path.exists(os.path.join(self.tmpdir, '1234.5678.pdf'))
+        assert call_count[0] == self.xiv.DEFAULT_RETRY_ATTEMPTS
 
 
 # Retry logic tests
