@@ -682,6 +682,14 @@ class TestParseDownloadArgs:
             xiv.parse_download_args(['/nonexistent_parent/papers'], 5)
         assert e.value.code == 1
 
+    def test_validate_download_dir_permission_error(self, xiv, monkeypatch):
+        """Test permission error path"""
+        monkeypatch.setattr('os.path.exists', lambda p: True)
+        monkeypatch.setattr('os.access', lambda p, m: False)
+        with pytest.raises(SystemExit) as e:
+            xiv.validate_download_dir('/path', '-d')
+        assert e.value.code == 1
+
 
 # Configuration tests
 def test_sorts_mapping(xiv):
@@ -697,6 +705,7 @@ class TestEnvironmentValidation:
         ('XIV_MAX_RESULTS', '5000', 10, True),
         ('XIV_DOWNLOAD_DELAY', '5.0', 5.0, False),
         ('XIV_DOWNLOAD_DELAY', 'abc', 3.0, True),
+        ('XIV_DOWNLOAD_DELAY', '-1.0', 3.0, True),
         ('XIV_DOWNLOAD_DELAY', '100.0', 3.0, True),
         ('XIV_RETRY_ATTEMPTS', '5', 5, False),
         ('XIV_RETRY_ATTEMPTS', '0', 3, True),
