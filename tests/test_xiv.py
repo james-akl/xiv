@@ -139,7 +139,8 @@ class TestDownload:
         result = self.xiv.download('http://arxiv.org/abs/1234.5678', '/nonexistent/deeply/nested/path')
         assert result is False
         captured = capsys.readouterr()
-        assert 'Cannot create directory' in captured.err
+        err = captured.err if hasattr(captured, 'err') else captured[1]
+        assert 'Cannot create directory' in err
 
     def test_cleans_up_file_on_retry_failure(self, monkeypatch, capsys):
         """Test that failed downloads clean up partial files"""

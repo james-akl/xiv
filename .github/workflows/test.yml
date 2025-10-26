@@ -32,4 +32,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test all Python versions
-        run: ./run_tests.sh
+        run: ./run_tests.sh -v
