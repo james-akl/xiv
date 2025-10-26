@@ -686,9 +686,9 @@ class TestParseDownloadArgs:
         """Test permission error path"""
         monkeypatch.setattr('os.path.exists', lambda p: True)
         monkeypatch.setattr('os.access', lambda p, m: False)
-        with pytest.raises(SystemExit) as e:
-            xiv.validate_download_dir('/path', '-d')
-        assert e.value.code == 1
+        err = xiv.validate_download_dir('/path')
+        assert err is not None
+        assert 'permission' in err.lower()
 
 
 # Configuration tests

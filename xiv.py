@@ -29,13 +29,18 @@ NS = {
 SORTS = {'date': 'submittedDate', 'updated': 'lastUpdatedDate', 'relevance': 'relevance'}
 
 # Constants
-MIN_VALID_PDF_SIZE = 100000  # PDFs are typically >100KB; smaller files are likely CAPTCHA pages
-CAPTCHA_CHECK_BYTES = 1024   # Read first 1KB to detect HTML CAPTCHA pages
-DATE_PREFIX_LENGTH = 10      # YYYY-MM-DD format
-MAX_TIME_RESULTS = 1000      # arXiv API limit for time-based queries
-EXIT_SIGINT = 130            # POSIX exit code for SIGINT (128 + 2)
+MIN_VALID_PDF_SIZE = 100000         # PDFs are typically >100KB; smaller files are likely CAPTCHA pages
+CAPTCHA_CHECK_BYTES = 1024          # Read first 1KB to detect HTML CAPTCHA pages
+DATE_PREFIX_LENGTH = 10             # YYYY-MM-DD format
+MAX_TIME_RESULTS = 1000             # arXiv API limit for time-based queries
+EXIT_SIGINT = 130                   # POSIX exit code for SIGINT (128 + 2)
+INDICES_PATTERN = r'^[\d,\-\s]+$'   # Pattern to detect index specifications like "1,3-5"
 
 # Safe environment variable parsing with validation
+def warn_env_fallback(var, reason, default):
+    """Emit standardized warning for env var fallback"""
+    sys.stderr.write("Warning: %s %s, using default %s\n" % (var, reason, default))
+
 def getenv_int(var, default, min_val=None, max_val=None):
     """Parse integer env var with optional range validation"""
     val_str = os.getenv(var)
@@ -44,14 +49,14 @@ def getenv_int(var, default, min_val=None, max_val=None):
     try:
         val = int(val_str)
         if min_val is not None and val < min_val:
-            sys.stderr.write("Warning: %s=%d is below minimum %d, using %d\n" % (var, val, min_val, default))
+            warn_env_fallback(var, "=%d is below minimum %d" % (val, min_val), default)
             return default
         if max_val is not None and val > max_val:
-            sys.stderr.write("Warning: %s=%d exceeds maximum %d, using %d\n" % (var, val, max_val, default))
+            warn_env_fallback(var, "=%d exceeds maximum %d" % (val, max_val), default)
             return default
         return val
     except ValueError:
-        sys.stderr.write("Warning: %s='%s' is not a valid integer, using default %d\n" % (var, val_str, default))
+        warn_env_fallback(var, "='%s' is not a valid integer" % val_str, default)
         return default
 
 def getenv_float(var, default, min_val=None, max_val=None):
@@ -62,30 +67,29 @@ def getenv_float(var, default, min_val=None, max_val=None):
     try:
         val = float(val_str)
         if min_val is not None and val < min_val:
-            sys.stderr.write("Warning: %s=%.1f is below minimum %.1f, using %.1f\n" % (var, val, min_val, default))
+            warn_env_fallback(var, "=%.1f is below minimum %.1f" % (val, min_val), "%.1f" % default)
             return default
         if max_val is not None and val > max_val:
-            sys.stderr.write("Warning: %s=%.1f exceeds maximum %.1f, using %.1f\n" % (var, val, max_val, default))
+            warn_env_fallback(var, "=%.1f exceeds maximum %.1f" % (val, max_val), "%.1f" % default)
             return default
         return val
     except ValueError:
-        sys.stderr.write("Warning: %s='%s' is not a valid number, using default %.1f\n" % (var, val_str, default))
+        warn_env_fallback(var, "='%s' is not a valid number" % val_str, "%.1f" % default)
         return default
 
 def getenv_str(var, default, valid_values=None):
     """Parse string env var with optional validation"""
     val = os.getenv(var, default)
     if valid_values and val not in valid_values:
-        sys.stderr.write("Warning: %s='%s' is not valid (use: %s), using default '%s'\n" %
-                        (var, val, ', '.join(valid_values), default))
+        warn_env_fallback(var, "='%s' is not valid (use: %s)" % (val, ', '.join(valid_values)), "'%s'" % default)
         return default
     return val
 
 # Configuration with validation
 DEFAULT_RESULTS = getenv_int('XIV_MAX_RESULTS', 10, min_val=1, max_val=2000)
-DEFAULT_CATEGORY = os.getenv('XIV_CATEGORY', 'cs.RO')
+DEFAULT_CATEGORY = getenv_str('XIV_CATEGORY', 'cs.RO')
 DEFAULT_SORT = getenv_str('XIV_SORT', 'date', valid_values=['date', 'updated', 'relevance'])
-DEFAULT_PDF_DIR = os.getenv('XIV_PDF_DIR', 'papers')
+DEFAULT_PDF_DIR = getenv_str('XIV_PDF_DIR', 'papers')
 DEFAULT_DOWNLOAD_DELAY = getenv_float('XIV_DOWNLOAD_DELAY', 3.0, min_val=0.0, max_val=60.0)
 DEFAULT_RETRY_ATTEMPTS = getenv_int('XIV_RETRY_ATTEMPTS', 3, min_val=1, max_val=10)
 DEFAULT_MAX_AUTHORS = getenv_int('XIV_MAX_AUTHORS', 3, min_val=1, max_val=20)
@@ -117,10 +121,8 @@ ARXIV_CATEGORIES = {
 
 def validate_category(cat, source=''):
     """Check if category is known to arXiv. Returns True if valid, warns if unknown."""
-    cat = cat.strip()
     if cat in ARXIV_CATEGORIES:
         return True
-    # Warn but allow unknown categories (may be new or archive-level)
     src = (" (%s)" % source) if source else ''
     sys.stderr.write("Warning: Unrecognized category '%s'%s - may be new or invalid\n" % (cat, src))
     return True
@@ -134,6 +136,7 @@ if DEFAULT_DOWNLOAD_DELAY < 3.0 and os.getenv('XIV_DOWNLOAD_DELAY'):
     sys.stderr.write("Warning: XIV_DOWNLOAD_DELAY < 3.0 violates API limits and risks blocking\n")
 
 def is_retryable_error(error):
+    """Check if error is retryable (5xx errors or timeouts)"""
     err_str = str(error).lower()
     return any(code in err_str for code in ['503', '502', '504', 'timeout'])
 
@@ -177,7 +180,6 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
     if not xml:
         return []
 
-    # Handle Python 2/3 encoding differences
     try:
         root = ET.fromstring(xml.encode('utf-8'))
     except (UnicodeDecodeError, ET.ParseError):
@@ -190,13 +192,13 @@ def search(query, max_results=10, sort='submittedDate', since=None, categories=N
             continue
 
         authors = [a.find('a:name', NS).text for a in entry.findall('a:author', NS)]
-        auth = ", ".join(authors[:DEFAULT_MAX_AUTHORS])
+        author_str = ", ".join(authors[:DEFAULT_MAX_AUTHORS])
         if len(authors) > DEFAULT_MAX_AUTHORS:
-            auth += " et al. (%d)" % len(authors)
+            author_str += " et al. (%d)" % len(authors)
 
         papers.append({
             'title': re.sub(r'\s+', ' ', entry.find('a:title', NS).text.strip()),
-            'authors': auth,
+            'authors': author_str,
             'published': pub,
             'link': entry.find('a:id', NS).text,
             'abstract': re.sub(r'\s+', ' ', entry.find('a:summary', NS).text.strip())
@@ -213,12 +215,12 @@ def is_captcha(path):
 
 def download(link, output_dir):
     """Download single paper PDF with retry logic. Returns True, False, or 'captcha'"""
-    try:
-        if not os.path.exists(output_dir):
+    if not os.path.exists(output_dir):
+        try:
             os.makedirs(output_dir)
-    except (OSError, IOError) as e:
-        sys.stderr.write("Error: Cannot create directory '%s': %s\n" % (output_dir, e))
-        return False
+        except OSError as e:
+            sys.stderr.write("Error: Cannot create directory '%s': %s\n" % (output_dir, e))
+            return False
 
     paper_id = link.split('/')[-1]
     path = os.path.join(output_dir, paper_id.replace('/', '-') + '.pdf')
@@ -227,6 +229,7 @@ def download(link, output_dir):
     sys.stderr.flush()
 
     def fetch_pdf():
+        """Fetch PDF and detect CAPTCHA. Returns True or 'captcha', raises on error."""
         pdf_url = "https://arxiv.org/pdf/%s.pdf" % paper_id
         req = Request(pdf_url, headers={'User-Agent': 'xiv/%s' % __version__})
         r = urlopen(req)
@@ -264,36 +267,35 @@ def download(link, output_dir):
                 sys.stderr.write("Err\n")
                 return False
 
-def format_json(papers):
-    print(json.dumps(papers, indent=2, ensure_ascii=False))
+def format_papers(papers, style='detailed'):
+    """Format papers for output. Style: 'json', 'compact', or 'detailed'"""
+    if style == 'json':
+        print(json.dumps(papers, indent=2, ensure_ascii=False))
+    elif style == 'compact':
+        w = len(str(len(papers)))
+        for i, p in enumerate(papers, 1):
+            print("[%s, %s] %s" % (str(i).zfill(w), p['published'], p['title']))
+    else:  # detailed
+        for i, p in enumerate(papers, 1):
+            print("\n[%d] %s" % (i, p['title']))
+            print("    %s\n    %s | %s\n    %s" % (p['authors'], p['published'], p['link'], p['abstract']))
 
-def format_compact(papers):
-    w = len(str(len(papers)))
-    for i, p in enumerate(papers, 1):
-        print("[%s, %s] %s" % (str(i).zfill(w), p['published'], p['title']))
-
-def format_detailed(papers):
-    for i, p in enumerate(papers, 1):
-        print("\n[%d] %s" % (i, p['title']))
-        print("    %s\n    %s | %s\n    %s" % (p['authors'], p['published'], p['link'], p['abstract']))
+# Backwards compatibility aliases for tests
+format_json = lambda papers: format_papers(papers, 'json')
+format_compact = lambda papers: format_papers(papers, 'compact')
+format_detailed = lambda papers: format_papers(papers, 'detailed')
 
 def parse_indices(spec, total):
-    """Parse index specification like '1,3-5,8' into list of 0-based indices.
-
-    Returns list of valid indices or None if spec is invalid.
-    Examples: '1,3,5' -> [0,2,4], '1-3' -> [0,1,2], '1,3-5,8' -> [0,2,3,4,7]
-    """
+    """Parse index specification like '1,3-5,8' into 0-based indices list."""
     if not spec:
         return None
-
     indices = set()
     try:
         for part in spec.split(','):
             part = part.strip()
             if '-' in part:
                 start, end = part.split('-', 1)
-                start_idx = int(start) - 1
-                end_idx = int(end) - 1
+                start_idx, end_idx = int(start) - 1, int(end) - 1
                 if start_idx < 0 or end_idx >= total or start_idx > end_idx:
                     return None
                 indices.update(range(start_idx, end_idx + 1))
@@ -302,7 +304,7 @@ def parse_indices(spec, total):
                 if idx < 0 or idx >= total:
                     return None
                 indices.add(idx)
-        return sorted(list(indices))
+        return sorted(indices)
     except (ValueError, AttributeError):
         return None
 
@@ -346,22 +348,21 @@ def download_papers(papers, output_dir, indices=None):
 
 def show_config():
     """Display current configuration and exit"""
+    configs = [
+        ('XIV_MAX_RESULTS', DEFAULT_RESULTS),
+        ('XIV_CATEGORY', DEFAULT_CATEGORY),
+        ('XIV_SORT', DEFAULT_SORT),
+        ('XIV_PDF_DIR', DEFAULT_PDF_DIR),
+        ('XIV_DOWNLOAD_DELAY', DEFAULT_DOWNLOAD_DELAY),
+        ('XIV_RETRY_ATTEMPTS', DEFAULT_RETRY_ATTEMPTS),
+        ('XIV_MAX_AUTHORS', DEFAULT_MAX_AUTHORS)
+    ]
+
     print("Configuration:")
     print("")
-    print("  XIV_MAX_RESULTS     = %-10s  %s" % (DEFAULT_RESULTS,
-          "(default)" if not os.getenv('XIV_MAX_RESULTS') else ""))
-    print("  XIV_CATEGORY        = %-10s  %s" % (DEFAULT_CATEGORY,
-          "(default)" if not os.getenv('XIV_CATEGORY') else ""))
-    print("  XIV_SORT            = %-10s  %s" % (DEFAULT_SORT,
-          "(default)" if not os.getenv('XIV_SORT') else ""))
-    print("  XIV_PDF_DIR         = %-10s  %s" % (DEFAULT_PDF_DIR,
-          "(default)" if not os.getenv('XIV_PDF_DIR') else ""))
-    print("  XIV_DOWNLOAD_DELAY  = %-10s  %s" % (DEFAULT_DOWNLOAD_DELAY,
-          "(default)" if not os.getenv('XIV_DOWNLOAD_DELAY') else ""))
-    print("  XIV_RETRY_ATTEMPTS  = %-10s  %s" % (DEFAULT_RETRY_ATTEMPTS,
-          "(default)" if not os.getenv('XIV_RETRY_ATTEMPTS') else ""))
-    print("  XIV_MAX_AUTHORS     = %-10s  %s" % (DEFAULT_MAX_AUTHORS,
-          "(default)" if not os.getenv('XIV_MAX_AUTHORS') else ""))
+    for var, value in configs:
+        is_default = " (default)" if not os.getenv(var) else ""
+        print("  %-20s = %-10s  %s" % (var, value, is_default))
     print("")
     print("Constraints:")
     print("")
@@ -372,17 +373,15 @@ def show_config():
     print("  XIV_MAX_AUTHORS     1-20")
     sys.exit(0)
 
-def validate_download_dir(output_dir, source=''):
-    """Validate directory can be created/written. Exits on error."""
+def validate_download_dir(output_dir):
+    """Check if directory can be created/written. Returns error message or None."""
     abs_dir = os.path.abspath(output_dir)
     parent = os.path.dirname(abs_dir) or '.'
-    src = (" (%s)" % source) if source else ''
     if not os.path.exists(parent):
-        sys.stderr.write("Error: Parent directory does not exist%s: %s\n" % (src, parent))
-        sys.exit(1)
+        return "Parent directory does not exist: %s" % parent
     if not os.access(parent, os.W_OK):
-        sys.stderr.write("Error: No write permission%s for: %s\n" % (src, parent))
-        sys.exit(1)
+        return "No write permission for: %s" % parent
+    return None
 
 def parse_download_args(args, num_papers):
     """Parse -d arguments and return (output_dir, indices).
@@ -393,24 +392,26 @@ def parse_download_args(args, num_papers):
     if args is None:
         return None, None
 
+    if len(args) > 2:
+        sys.stderr.write("Error: -d accepts at most 2 arguments (DIR and INDICES)\n")
+        sys.exit(1)
+
     output_dir = DEFAULT_PDF_DIR
     indices_spec = None
 
-    if len(args) == 0:
-        pass  # -d alone: defaults
-    elif len(args) == 1:
+    if len(args) == 1:
         # Could be DIR or INDICES - check if it looks like indices
-        if re.match(r'^[\d,\-\s]+$', args[0]):
+        if re.match(INDICES_PATTERN, args[0]):
             indices_spec = args[0]
         else:
             output_dir = args[0]
     elif len(args) == 2:
         output_dir, indices_spec = args[0], args[1]
-    else:
-        sys.stderr.write("Error: -d accepts at most 2 arguments (DIR and INDICES)\n")
-        sys.exit(1)
 
-    validate_download_dir(output_dir, '-d')
+    err = validate_download_dir(output_dir)
+    if err:
+        sys.stderr.write("Error (-d): %s\n" % err)
+        sys.exit(1)
 
     indices = None
     if indices_spec:
@@ -422,6 +423,23 @@ def parse_download_args(args, num_papers):
             sys.exit(1)
 
     return output_dir, indices
+
+def validate_cli_args(args):
+    """Validate CLI arguments. Exits on error, warns on potential issues."""
+    if args.n is not None:
+        if args.n < 1:
+            sys.stderr.write("Error: -n must be at least 1\n")
+            sys.exit(1)
+        if args.n > 2000:
+            sys.stderr.write("Warning: -n > 2000 may be excessive; arXiv may limit results\n")
+
+    if args.t is not None and args.t < 1:
+        sys.stderr.write("Error: -t must be at least 1\n")
+        sys.exit(1)
+
+    if args.c:
+        for cat in args.c:
+            validate_category(cat, '-c')
 
 def parse_arguments():
     p = argparse.ArgumentParser(description='xiv', add_help=False,
@@ -446,35 +464,13 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
-    # Handle -e/--env flag
     if args.env:
         show_config()
 
-    # Validate CLI arguments
-    if args.n is not None and args.n < 1:
-        sys.stderr.write("Error: -n must be at least 1\n")
-        sys.exit(1)
-    if args.n is not None and args.n > 2000:
-        sys.stderr.write("Warning: -n > 2000 may be excessive; arXiv may limit results\n")
-    if args.t is not None and args.t < 1:
-        sys.stderr.write("Error: -t must be at least 1\n")
-        sys.exit(1)
-
-    # Validate categories (warns for unknown, doesn't block)
-    if args.c:
-        for cat in args.c:
-            validate_category(cat, '-c')
-
-    # Early directory validation (before expensive search)
-    if args.d is not None:
-        # Extract directory from args (could be DIR or INDICES in first arg)
-        dir_to_validate = DEFAULT_PDF_DIR
-        if args.d and not re.match(r'^[\d,\-\s]+$', args.d[0]):
-            dir_to_validate = args.d[0]
-        validate_download_dir(dir_to_validate, '-d')
+    validate_cli_args(args)
 
     since = (datetime.now() - timedelta(days=args.t)).strftime('%Y-%m-%d') if args.t else None
-    max_results = args.n if args.n else (MAX_TIME_RESULTS if args.t else DEFAULT_RESULTS)
+    max_results = args.n or (MAX_TIME_RESULTS if args.t else DEFAULT_RESULTS)
     sort = SORTS.get(args.s or DEFAULT_SORT)
 
     papers = search(args.query, max_results, sort, since, args.c)
@@ -483,12 +479,8 @@ def main():
         sys.stderr.write("No papers found matching your query.\n")
         sys.exit(1)
 
-    if args.j:
-        format_json(papers)
-    elif args.l:
-        format_compact(papers)
-    else:
-        format_detailed(papers)
+    style = 'json' if args.j else ('compact' if args.l else 'detailed')
+    format_papers(papers, style)
 
     output_dir, indices = parse_download_args(args.d, len(papers))
     if output_dir:
