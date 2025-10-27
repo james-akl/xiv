@@ -253,20 +253,20 @@ class TestFormatting:
         ]
 
     def test_format_json(self, xiv, papers, capsys):
-        xiv.format_json(papers)
+        xiv.format_papers(papers, 'json')
         out = capsys.readouterr()
         output = out[0] if isinstance(out, tuple) else out.out
         data = json.loads(output)
         assert isinstance(data, list) and len(data) == 2 and data[0]['title'] == 'First'
 
     def test_format_compact(self, xiv, papers, capsys):
-        xiv.format_compact(papers)
+        xiv.format_papers(papers, 'compact')
         out = capsys.readouterr()
         output = out[0] if isinstance(out, tuple) else out.out
         assert '[1, 2025-10-16]' in output and 'First' in output
 
     def test_format_detailed(self, xiv, papers, capsys):
-        xiv.format_detailed(papers)
+        xiv.format_papers(papers, 'detailed')
         out = capsys.readouterr()
         output = out[0] if isinstance(out, tuple) else out.out
         assert all(x in output for x in ['[1] First', 'Alice', '2025-10-16', 'Abstract 1'])
@@ -893,3 +893,62 @@ class TestConfig:
         out = capsys.readouterr()
         output = out[0] if isinstance(out, tuple) else out.out
         assert '50' in output
+
+
+# Format functionality tests
+class TestFormatFunctionality:
+    @pytest.fixture
+    def paper(self):
+        return {'title': 'Test', 'authors': 'Alice, Bob', 'published': '2025-10-16',
+                'link': 'http://arxiv.org/abs/1', 'abstract': 'Abstract'}
+
+    @pytest.mark.parametrize('style,formatted,has_ansi', [
+        ('detailed', 0, False), ('detailed', 1, True),
+        ('compact', 0, False), ('compact', 1, True),
+        ('json', 1, False),  # JSON never has ANSI codes
+    ])
+    def test_format_output(self, xiv, paper, capsys, style, formatted, has_ansi):
+        """Test formatting across styles"""
+        xiv.format_papers([paper], style, formatted)
+        out = capsys.readouterr()
+        output = out[0] if isinstance(out, tuple) else out.out
+        assert ('\033[' in output) == has_ansi
+        assert 'Test' in output or (style == 'json' and '"title"' in output)
+
+    def test_et_al_formatting(self, xiv, capsys):
+        """et al. text plain, author names and count colored"""
+        paper = {'title': 'Multi', 'authors': 'Alice, Bob et al. (10)',
+                 'published': '2025-10-16', 'link': 'http://arxiv.org/abs/1', 'abstract': 'Test'}
+        xiv.format_papers([paper], 'detailed', 1)
+        out = capsys.readouterr()
+        output = out[0] if isinstance(out, tuple) else out.out
+        assert ' et al. (' in output and '\033[93m' in output
+
+    @pytest.mark.parametrize('argv,has_ansi', [
+        (['xiv', 'test', '-f'], True),      # -f flag enables
+        (['xiv', 'test'], False),            # no flag = plain
+    ])
+    def test_cli_format_flag(self, xiv, monkeypatch, capsys, argv, has_ansi):
+        """Test -f flag behavior"""
+        monkeypatch.setattr(xiv, 'search', lambda *a, **k: [
+            {'title': 'T', 'authors': 'A', 'published': '2025-10-16',
+             'link': 'http://arxiv.org/abs/1', 'abstract': 'X'}])
+        monkeypatch.setattr(sys, 'argv', argv)
+        xiv.main()
+        out = capsys.readouterr()
+        output = out[0] if isinstance(out, tuple) else out.out
+        assert ('\033[' in output) == has_ansi
+
+    def test_xiv_format_env_var(self, monkeypatch):
+        """XIV_FORMAT env var sets default"""
+        monkeypatch.setenv('XIV_FORMAT', '1')
+        import xiv, importlib
+        importlib.reload(xiv)
+        assert xiv.DEFAULT_FORMAT == 1
+
+    def test_config_displays_format(self, xiv, monkeypatch, capsys):
+        """show_config displays XIV_FORMAT"""
+        monkeypatch.setattr(sys, 'argv', ['xiv', '-e'])
+        with pytest.raises(SystemExit):
+            xiv.main()
+        assert 'XIV_FORMAT' in capsys.readouterr()[0]

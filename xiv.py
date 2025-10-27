@@ -93,6 +93,7 @@ DEFAULT_PDF_DIR = getenv_str('XIV_PDF_DIR', 'papers')
 DEFAULT_DOWNLOAD_DELAY = getenv_float('XIV_DOWNLOAD_DELAY', 3.0, min_val=0.0, max_val=60.0)
 DEFAULT_RETRY_ATTEMPTS = getenv_int('XIV_RETRY_ATTEMPTS', 3, min_val=1, max_val=10)
 DEFAULT_MAX_AUTHORS = getenv_int('XIV_MAX_AUTHORS', 3, min_val=1, max_val=20)
+DEFAULT_FORMAT = getenv_int('XIV_FORMAT', 0, min_val=0, max_val=1)
 
 # Known arXiv categories (updated 2025-10-26)
 ARXIV_CATEGORIES = {
@@ -266,23 +267,54 @@ def download(link, output_dir):
                 sys.stderr.write("Err\n")
                 return False
 
-def format_papers(papers, style='detailed'):
+def format_papers(papers, style='detailed', formatted=0):
     """Format papers for output. Style: 'json', 'compact', or 'detailed'"""
+    def fmt(text, code):
+        """Apply ANSI code to text if formatting is enabled"""
+        return ('\033[%sm' % code + text + '\033[0m') if formatted else text
+
+    # Semantic color constants (bright variants)
+    INDEX = '92'               # bright green
+    AUTHOR = '93'              # bright yellow
+    DATE = '95'                # bright magenta
+    LINK = '94'                # bright blue
+    TITLE_WHITE = '97'         # bright white
+    TITLE_BOLD_WHITE = '1;97'  # bold + bright white
+    ABSTRACT = '37'            # light grey (neutral)
+
     if style == 'json':
         print(json.dumps(papers, indent=2, ensure_ascii=False))
     elif style == 'compact':
         w = len(str(len(papers)))
         for i, p in enumerate(papers, 1):
-            print("[%s, %s] %s" % (str(i).zfill(w), p['published'], p['title']))
+            idx_num = fmt(str(i).zfill(w), INDEX)
+            date = fmt(p['published'], DATE)
+            title = fmt(p['title'], TITLE_WHITE)
+            print("[%s, %s] %s" % (idx_num, date, title))
     else:  # detailed
         for i, p in enumerate(papers, 1):
-            print("\n[%d] %s" % (i, p['title']))
-            print("    %s\n    %s | %s\n    %s" % (p['authors'], p['published'], p['link'], p['abstract']))
+            idx_num = fmt(str(i), INDEX)
+            title = fmt(p['title'], TITLE_BOLD_WHITE)
 
-# Backwards compatibility aliases for tests
-format_json = lambda papers: format_papers(papers, 'json')
-format_compact = lambda papers: format_papers(papers, 'compact')
-format_detailed = lambda papers: format_papers(papers, 'detailed')
+            # Color individual author names and et al. count
+            author_str = p['authors']
+            if ' et al.' in author_str:
+                parts = author_str.split(' et al.')
+                author_names = parts[0].split(', ')
+                colored_authors = ', '.join([fmt(a, AUTHOR) for a in author_names])
+                suffix = parts[1]
+                colored_suffix = re.sub(r'\((\d+)\)', lambda m: '(' + fmt(m.group(1), AUTHOR) + ')', suffix)
+                colored_authors += ' et al.' + colored_suffix
+            else:
+                author_parts = author_str.split(', ')
+                colored_authors = ', '.join([fmt(a, AUTHOR) for a in author_parts])
+
+            date = fmt(p['published'], DATE)
+            link = fmt(p['link'], LINK)
+            abstract = fmt(p['abstract'], ABSTRACT)
+
+            print("\n[%s] %s" % (idx_num, title))
+            print("    %s\n    %s | %s\n    %s" % (colored_authors, date, link, abstract))
 
 def parse_indices(spec, total):
     """Parse index specification like '1,3-5,8' into 0-based indices list."""
@@ -351,6 +383,7 @@ def show_config():
         ('XIV_MAX_RESULTS', DEFAULT_RESULTS),
         ('XIV_CATEGORY', DEFAULT_CATEGORY),
         ('XIV_SORT', DEFAULT_SORT),
+        ('XIV_FORMAT', DEFAULT_FORMAT),
         ('XIV_PDF_DIR', DEFAULT_PDF_DIR),
         ('XIV_DOWNLOAD_DELAY', DEFAULT_DOWNLOAD_DELAY),
         ('XIV_RETRY_ATTEMPTS', DEFAULT_RETRY_ATTEMPTS),
@@ -367,6 +400,7 @@ def show_config():
     print("")
     print("  XIV_MAX_RESULTS     1-2000")
     print("  XIV_SORT            date | updated | relevance")
+    print("  XIV_FORMAT          0-1")
     print("  XIV_DOWNLOAD_DELAY  0.0-60.0  (< 3.0 violates API limits, risks blocking)")
     print("  XIV_RETRY_ATTEMPTS  1-10")
     print("  XIV_MAX_AUTHORS     1-20")
@@ -454,6 +488,7 @@ def parse_arguments():
                    help='download PDFs; accepts: -d (default dir \'papers\', env: XIV_PDF_DIR), -d DIR, -d 1,3-5, -d DIR 1,3-5')
     p.add_argument('-j', action='store_true', help='output as JSON')
     p.add_argument('-l', action='store_true', help='compact list output')
+    p.add_argument('-f', action='store_true', help='formatted output with color (default: %d, env: XIV_FORMAT)' % DEFAULT_FORMAT)
     p.add_argument('-e', '--env', action='store_true', help='show environment configuration and exit')
     p.add_argument('-v', '--version', action='version', version='xiv ' + __version__, help='show version')
     p.add_argument('-h', action='help', help='show this help')
@@ -479,7 +514,8 @@ def main():
         sys.exit(1)
 
     style = 'json' if args.j else ('compact' if args.l else 'detailed')
-    format_papers(papers, style)
+    formatted = 1 if args.f else DEFAULT_FORMAT
+    format_papers(papers, style, formatted)
 
     output_dir, indices = parse_download_args(args.d, len(papers))
     if output_dir:

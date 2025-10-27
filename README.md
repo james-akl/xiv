@@ -60,6 +60,7 @@ query              search query
                    -d DIR, -d 1,3-5, -d DIR 1,3-5
 -j                 output as JSON
 -l                 compact list output
+-f                 formatted output with color (default: plain, env: XIV_FORMAT)
 -e, --env          show environment configuration and exit
 -v, --version      show version
 -h                 show help
@@ -84,6 +85,10 @@ xiv "graph neural networks" -n 20 -d 1-5,8
 xiv "reinforcement learning" -n 20 -d rl_papers/ 2,4-7,10
 # Get compact list of recent quantum computing papers
 xiv "quantum computing" -c quant-ph -n 20 -l
+# Enable formatted/colored output
+xiv "machine learning" -f
+# Plain output (default, useful for piping)
+xiv "deep learning" > papers.txt
 # JSON output piped to `jq` for processing
 xiv "graph neural networks" -n 10 -j | jq '.[].title'
 xiv "reinforcement learning" -n 5 -j | jq -r '.[] | "\(.published) - \(.title)"'
@@ -102,6 +107,7 @@ Configure defaults via environment variables. All values are validated on startu
 export XIV_MAX_RESULTS=20                # Default number of results (range: 1-2000)
 export XIV_CATEGORY='cs.AI cs.CV'        # Default categories
 export XIV_SORT=relevance                # Default sort order (date, updated, relevance)
+export XIV_FORMAT=1                      # Formatted output: 0=plain, 1=color (default: 0)
 export XIV_PDF_DIR=papers                # Download directory
 export XIV_DOWNLOAD_DELAY=3.0            # Seconds between downloads (range: 0.0-60.0)
 export XIV_RETRY_ATTEMPTS=3              # Retry attempts for failed requests (range: 1-10)
@@ -115,6 +121,7 @@ For persistence, add to `~/.bashrc`, `~/.zshrc`, or otherwise.
 $env:XIV_MAX_RESULTS=20
 $env:XIV_CATEGORY="cs.AI cs.CV"
 $env:XIV_SORT="relevance"
+$env:XIV_FORMAT=1
 $env:XIV_PDF_DIR="papers"
 $env:XIV_DOWNLOAD_DELAY=3.0
 $env:XIV_RETRY_ATTEMPTS=3
@@ -136,7 +143,7 @@ xiv -e  # Display all settings with validation ranges
 
 ## Testing
 
-Comprehensive test suite with 140 pytest tests covering all functionality:
+Comprehensive test suite with 150 pytest tests covering all functionality:
 
 ```bash
 # Local testing
@@ -153,10 +160,11 @@ pytest -v                       # Verbose with test names
 - **Search function**: API parameters, data validation, filtering, sorting
 - **Download function**: PDF retrieval, directory creation, file naming, selective downloads
 - **Helper functions**: Error classification, CAPTCHA detection, retry logic, index parsing
-- **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-v`) with selective download combinations
+- **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-f`, `-v`) with selective download combinations
 - **Configuration**: Environment variables, constants, defaults, validation with warnings
 - **Input validation**: Category format validation, range checks, policy warnings
-- **Output formats**: JSON, compact list, standard output
+- **Output formats**: JSON, compact list, standard output, formatted (colored) output
+- **Format functionality**: ANSI code application, semantic coloring, et al. handling
 - **Edge cases**: Empty results, error handling, exit codes, pipe handling, invalid index specifications
 
 Unit tests use real arXiv response data for accurate mocking and require no network. Integration tests make live API calls. All tests must pass on Python 2.7 and 3.3–3.14.
