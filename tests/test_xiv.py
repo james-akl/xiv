@@ -942,8 +942,15 @@ class TestFormatFunctionality:
     def test_xiv_format_env_var(self, monkeypatch):
         """XIV_FORMAT env var sets default"""
         monkeypatch.setenv('XIV_FORMAT', '1')
-        import xiv, importlib
-        importlib.reload(xiv)
+        import xiv
+        if sys.version_info >= (3, 4):
+            import importlib
+            importlib.reload(xiv)
+        elif sys.version_info[0] >= 3:
+            import imp
+            imp.reload(xiv)
+        else:
+            reload(xiv)  # noqa: F821
         assert xiv.DEFAULT_FORMAT == 1
 
     def test_config_displays_format(self, xiv, monkeypatch, capsys):
