@@ -144,7 +144,7 @@ xiv -e  # Display all settings with validation ranges
 
 ## Testing
 
-Comprehensive test suite with 155 pytest tests covering all functionality:
+Comprehensive test suite with 157 pytest tests covering all functionality:
 
 ```bash
 # Local testing
@@ -163,9 +163,9 @@ pytest -v                       # Verbose with test names
 - **Helper functions**: Error classification, CAPTCHA detection, retry logic, index parsing
 - **CLI arguments**: All flags (`-n`, `-c`, `-t`, `-s`, `-d`, `-j`, `-l`, `-f`, `-v`) with selective download combinations
 - **Configuration**: Environment variables, constants, defaults, validation with warnings
-- **Input validation**: Category format validation, range checks, policy warnings
+- **Input validation**: Category format validation (case-insensitive), range checks, policy warnings
 - **Output formats**: JSON, compact list, standard output, formatted (colored) output
-- **Format functionality**: ANSI code application, semantic coloring, et al. handling
+- **Format functionality**: ANSI code application, semantic coloring, et al. handling, formatted warnings/errors
 - **Edge cases**: Empty results, error handling, exit codes, pipe handling, invalid index specifications
 
 Unit tests use real arXiv response data for accurate mocking and require no network. Integration tests make live API calls. All tests must pass on Python 2.7 and 3.3–3.14.

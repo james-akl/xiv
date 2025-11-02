@@ -859,6 +859,20 @@ class TestCLIValidation:
         out = capsys.readouterr()
         assert 'Unrecognized category' in (out[1] if isinstance(out, tuple) else out.err)
 
+    @pytest.mark.parametrize("use_format,has_ansi", [(False, False), (True, True)])
+    def test_warnings_respect_format_flag(self, xiv, monkeypatch, capsys, use_format, has_ansi):
+        """Warnings formatted when -f flag used"""
+        monkeypatch.setattr(xiv, 'search', lambda *a, **k: [])
+        args = ['xiv', 'test', '-c', 'invalid', '-n', '1']
+        if use_format:
+            args.append('-f')
+        monkeypatch.setattr(sys, 'argv', args)
+        with pytest.raises(SystemExit):
+            xiv.main()
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert ('\033[' in stderr or '\x1b[' in stderr) == has_ansi
+
 
 # Config display tests
 class TestConfig:

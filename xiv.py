@@ -36,6 +36,14 @@ MAX_TIME_RESULTS = 1000             # arXiv API limit for time-based queries
 EXIT_SIGINT = 130                   # POSIX exit code for SIGINT (128 + 2)
 INDICES_PATTERN = r'^[\d,\-\s]+$'   # Pattern to detect index specifications like "1,3-5"
 
+def format_warning(msg, formatted=0):
+    """Format warning message with optional color"""
+    return ('\033[93m' + msg + '\033[0m') if formatted else msg
+
+def format_error(msg, formatted=0):
+    """Format error message with optional color"""
+    return ('\033[91m' + msg + '\033[0m') if formatted else msg
+
 # Safe environment variable parsing with validation
 def warn_env_fallback(var, reason, default):
     """Emit standardized warning for env var fallback"""
@@ -121,12 +129,14 @@ ARXIV_CATEGORIES = {
 }
 _ARXIV_CATEGORIES_LOWER = {c.lower() for c in ARXIV_CATEGORIES}
 
-def validate_category(cat, source=''):
+def validate_category(cat, source='', formatted=None):
     """Check if category is known to arXiv. Returns True if valid, warns if unknown."""
     if cat.lower() in _ARXIV_CATEGORIES_LOWER:
         return True
     src = (" (%s)" % source) if source else ''
-    sys.stderr.write("Warning: Unrecognized category '%s'%s - may be new or invalid\n" % (cat, src))
+    fmt = formatted if formatted is not None else DEFAULT_FORMAT
+    msg = "Warning: Unrecognized category '%s'%s - may be new or invalid\n" % (cat, src)
+    sys.stderr.write(format_warning(msg, fmt))
     return True
 
 if os.getenv('XIV_CATEGORY'):
@@ -417,7 +427,7 @@ def validate_download_dir(output_dir):
         return "No write permission for: %s" % parent
     return None
 
-def parse_download_args(args, num_papers):
+def parse_download_args(args, num_papers, formatted=0):
     """Parse -d arguments and return (output_dir, indices).
 
     Returns (None, None) if -d not specified.
@@ -427,7 +437,7 @@ def parse_download_args(args, num_papers):
         return None, None
 
     if len(args) > 2:
-        sys.stderr.write("Error: -d accepts at most 2 arguments (DIR and INDICES)\n")
+        sys.stderr.write(format_error("Error: -d accepts at most 2 arguments (DIR and INDICES)\n", formatted))
         sys.exit(1)
 
     output_dir = DEFAULT_PDF_DIR
@@ -444,36 +454,37 @@ def parse_download_args(args, num_papers):
 
     err = validate_download_dir(output_dir)
     if err:
-        sys.stderr.write("Error (-d): %s\n" % err)
+        sys.stderr.write(format_error("Error (-d): %s\n" % err, formatted))
         sys.exit(1)
 
     indices = None
     if indices_spec:
         indices = parse_indices(indices_spec, num_papers)
         if indices is None:
-            sys.stderr.write("Error: Invalid index specification '%s'\n" % indices_spec)
-            sys.stderr.write("Use format like: 1,3,5 or 1-5 or 1,3-5,8\n")
-            sys.stderr.write("Valid range: 1-%d\n" % num_papers)
+            msg = "Error: Invalid index specification '%s'\n" % indices_spec
+            msg += "Use format like: 1,3,5 or 1-5 or 1,3-5,8\n"
+            msg += "Valid range: 1-%d\n" % num_papers
+            sys.stderr.write(format_error(msg, formatted))
             sys.exit(1)
 
     return output_dir, indices
 
-def validate_cli_args(args):
+def validate_cli_args(args, formatted=0):
     """Validate CLI arguments. Exits on error, warns on potential issues."""
     if args.n is not None:
         if args.n < 1:
-            sys.stderr.write("Error: -n must be at least 1\n")
+            sys.stderr.write(format_error("Error: -n must be at least 1\n", formatted))
             sys.exit(1)
         if args.n > 2000:
-            sys.stderr.write("Warning: -n > 2000 may be excessive; arXiv may limit results\n")
+            sys.stderr.write(format_warning("Warning: -n > 2000 may be excessive; arXiv may limit results\n", formatted))
 
     if args.t is not None and args.t < 1:
-        sys.stderr.write("Error: -t must be at least 1\n")
+        sys.stderr.write(format_error("Error: -t must be at least 1\n", formatted))
         sys.exit(1)
 
     if args.c:
         for cat in args.c:
-            validate_category(cat, '-c')
+            validate_category(cat, '-c', formatted)
 
 def parse_arguments():
     p = argparse.ArgumentParser(description='xiv', add_help=False,
@@ -502,7 +513,8 @@ def main():
     if args.env:
         show_config()
 
-    validate_cli_args(args)
+    formatted = 1 if args.f else DEFAULT_FORMAT
+    validate_cli_args(args, formatted)
 
     since = (datetime.now() - timedelta(days=args.t)).strftime('%Y-%m-%d') if args.t else None
     max_results = args.n or (MAX_TIME_RESULTS if args.t else DEFAULT_RESULTS)
@@ -511,14 +523,13 @@ def main():
     papers = search(args.query, max_results, sort, since, args.c)
 
     if not papers:
-        sys.stderr.write("No papers found matching your query.\n")
+        sys.stderr.write(format_error("No papers found matching your query.\n", formatted))
         sys.exit(1)
 
     style = 'json' if args.j else ('compact' if args.l else 'detailed')
-    formatted = 1 if args.f else DEFAULT_FORMAT
     format_papers(papers, style, formatted)
 
-    output_dir, indices = parse_download_args(args.d, len(papers))
+    output_dir, indices = parse_download_args(args.d, len(papers), formatted)
     if output_dir:
         download_papers(papers, output_dir, indices)
 
