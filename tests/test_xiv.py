@@ -729,8 +729,9 @@ class TestParseDownloadArgs:
         assert dir == exp_dir and indices == expected_indices
 
     def test_exits_on_too_many_args(self, xiv):
+        class Args: n = None; t = None; c = None; d = ['a', 'b', 'c']
         with pytest.raises(SystemExit) as e:
-            xiv.parse_download_args(['a', 'b', 'c'], 5)
+            xiv.validate_cli_args(Args())
         assert e.value.code == 1
 
     def test_exits_on_invalid_indices(self, xiv):
@@ -739,8 +740,9 @@ class TestParseDownloadArgs:
         assert e.value.code == 1
 
     def test_exits_on_nonexistent_parent_dir(self, xiv):
+        class Args: n = None; t = None; c = None; d = ['/nonexistent_parent/papers']
         with pytest.raises(SystemExit) as e:
-            xiv.parse_download_args(['/nonexistent_parent/papers'], 5)
+            xiv.validate_cli_args(Args())
         assert e.value.code == 1
 
     def test_validate_download_dir_permission_error(self, xiv, monkeypatch):
@@ -750,6 +752,16 @@ class TestParseDownloadArgs:
         err = xiv.validate_download_dir('/path')
         assert err is not None
         assert 'permission' in err.lower()
+
+    def test_exits_on_swapped_dir_indices(self, xiv, capsys):
+        """Test error message when DIR and INDICES are swapped"""
+        class Args: n = None; t = None; c = None; d = ['7,7', '/tmp/path']
+        with pytest.raises(SystemExit) as e:
+            xiv.validate_cli_args(Args())
+        assert e.value.code == 1
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert 'Did you mean: -d /tmp/path 7,7' in stderr
 
 
 # Configuration tests

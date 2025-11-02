@@ -444,31 +444,21 @@ def parse_download_args(args, num_papers, formatted=0):
     """Parse -d arguments and return (output_dir, indices).
 
     Returns (None, None) if -d not specified.
-    Exits with error if invalid.
+    Exits with error if invalid indices.
     """
     if args is None:
         return None, None
-
-    if len(args) > 2:
-        sys.stderr.write(format_error("Error: -d accepts at most 2 arguments (DIR and INDICES)\n", formatted))
-        sys.exit(1)
 
     output_dir = DEFAULT_PDF_DIR
     indices_spec = None
 
     if len(args) == 1:
-        # Could be DIR or INDICES - check if it looks like indices
         if re.match(INDICES_PATTERN, args[0]):
             indices_spec = args[0]
         else:
             output_dir = args[0]
     elif len(args) == 2:
         output_dir, indices_spec = args[0], args[1]
-
-    err = validate_download_dir(output_dir)
-    if err:
-        sys.stderr.write(format_error("Error (-d): %s\n" % err, formatted))
-        sys.exit(1)
 
     indices = None
     if indices_spec:
@@ -498,6 +488,36 @@ def validate_cli_args(args, formatted=0):
     if args.c:
         for cat in args.c:
             validate_category(cat, '-c', formatted)
+
+    # Validate download args early (structure and DIR, not indices)
+    if args.d is not None:
+        if len(args.d) > 2:
+            sys.stderr.write(format_error("Error: -d accepts at most 2 arguments (DIR and INDICES)\n", formatted))
+            sys.exit(1)
+
+        output_dir = DEFAULT_PDF_DIR
+        indices_spec = None
+
+        if len(args.d) == 1:
+            if re.match(INDICES_PATTERN, args.d[0]):
+                indices_spec = args.d[0]
+            else:
+                output_dir = args.d[0]
+        elif len(args.d) == 2:
+            output_dir, indices_spec = args.d[0], args.d[1]
+
+        # Check if user swapped DIR and INDICES
+        if indices_spec and not re.match(INDICES_PATTERN, indices_spec):
+            msg = "Error: Expected index specification (e.g., 1,3-5) but got '%s'\n" % indices_spec
+            msg += "Did you mean: -d %s %s\n" % (indices_spec, output_dir)
+            sys.stderr.write(format_error(msg, formatted))
+            sys.exit(1)
+
+        # Validate directory
+        err = validate_download_dir(output_dir)
+        if err:
+            sys.stderr.write(format_error("Error (-d): %s\n" % err, formatted))
+            sys.exit(1)
 
 def parse_arguments():
     p = argparse.ArgumentParser(description='xiv', add_help=False,
