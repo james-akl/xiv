@@ -158,6 +158,24 @@ class TestDownload:
         assert not os.path.exists(os.path.join(self.tmpdir, '1234.5678.pdf'))
         assert call_count[0] == self.xiv.DEFAULT_RETRY_ATTEMPTS
 
+    def test_displays_title_when_provided(self, capsys):
+        """Test download displays truncated title after OK"""
+        result = self.xiv.download('http://arxiv.org/abs/1234.5678', self.tmpdir,
+                                   title='A Very Long Paper Title That Should Be Truncated', formatted=0)
+        assert result is True
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert 'OK    (A Very Long Paper' in stderr and '...)' in stderr
+
+    def test_displays_formatted_title(self, capsys):
+        """Test download displays gray formatted title"""
+        result = self.xiv.download('http://arxiv.org/abs/1234.5678', self.tmpdir,
+                                   title='Test Paper', formatted=1)
+        assert result is True
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert '\033[92mOK\033[0m' in stderr and '\033[90m(Test Paper)\033[0m' in stderr
+
 
 # Retry logic tests
 class TestRetryWithBackoff:
@@ -288,6 +306,15 @@ class TestDownloadPapers:
                   {'link': 'http://arxiv.org/abs/2', 'title': 'P2'}]
         self.xiv.download_papers(papers, self.tmpdir)
         assert self.downloads == ['http://arxiv.org/abs/1', 'http://arxiv.org/abs/2']
+
+    def test_shows_rate_limiting_message(self, capsys):
+        """Test rate limiting message displayed for multiple papers"""
+        papers = [{'link': 'http://arxiv.org/abs/1', 'title': 'P1'},
+                  {'link': 'http://arxiv.org/abs/2', 'title': 'P2'}]
+        self.xiv.download_papers(papers, self.tmpdir)
+        out = capsys.readouterr()
+        stderr = out[1] if isinstance(out, tuple) else out.err
+        assert 'Rate limiting' in stderr
 
     def test_shows_progress(self, capsys):
         papers = [{'link': 'http://arxiv.org/abs/1', 'title': 'P1'},
