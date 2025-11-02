@@ -354,7 +354,7 @@ def download_papers(papers, output_dir, indices=None):
     """Download papers to output_dir, optionally filtering by indices (0-based)"""
     selected_papers = [papers[i] for i in indices] if indices else papers
 
-    sys.stderr.write("\nDownloading to '%s/'...\n" % output_dir)
+    sys.stderr.write("\nDownloading to '%s/'...\n" % output_dir.rstrip('/'))
     if len(selected_papers) > 1:
         sys.stderr.write("Rate limiting: %.1fs delay between downloads\n" % DEFAULT_DOWNLOAD_DELAY)
 
