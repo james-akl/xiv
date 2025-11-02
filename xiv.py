@@ -119,10 +119,11 @@ ARXIV_CATEGORIES = {
     'q-bio.SC', 'q-bio.TO', 'q-fin.CP', 'q-fin.EC', 'q-fin.GN', 'q-fin.MF', 'q-fin.PM', 'q-fin.PR',
     'q-fin.RM', 'q-fin.ST', 'q-fin.TR', 'stat.AP', 'stat.CO', 'stat.ME', 'stat.ML', 'stat.OT', 'stat.TH'
 }
+_ARXIV_CATEGORIES_LOWER = {c.lower() for c in ARXIV_CATEGORIES}
 
 def validate_category(cat, source=''):
     """Check if category is known to arXiv. Returns True if valid, warns if unknown."""
-    if cat in ARXIV_CATEGORIES:
+    if cat.lower() in _ARXIV_CATEGORIES_LOWER:
         return True
     src = (" (%s)" % source) if source else ''
     sys.stderr.write("Warning: Unrecognized category '%s'%s - may be new or invalid\n" % (cat, src))

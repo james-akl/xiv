@@ -138,12 +138,13 @@ xiv -e  # Display all settings with validation ranges
 **Notes:**
 - Invalid values trigger warnings and fall back to defaults
 - `XIV_DOWNLOAD_DELAY < 3.0` violates API limits and risks blocking
+- Category validation is case-insensitive (e.g., `cs.AI`, `cs.ai`, `CS.AI` all valid)
 - Unknown categories trigger warnings but don't block execution
 - All environment variables are optional
 
 ## Testing
 
-Comprehensive test suite with 150 pytest tests covering all functionality:
+Comprehensive test suite with 155 pytest tests covering all functionality:
 
 ```bash
 # Local testing

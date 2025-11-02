@@ -803,10 +803,12 @@ class TestEnvironmentValidation:
         assert (category in xiv.ARXIV_CATEGORIES) == known
 
     @pytest.mark.parametrize("category,should_warn", [
-        ('cs.AI', False), ('invalid_cat', True)
+        ('cs.AI', False), ('cs.ai', False), ('CS.AI', False),  # Case-insensitive
+        ('cs.ET', False), ('cs.et', False), ('Cs.Et', False),  # Mixed case
+        ('invalid_cat', True)
     ])
     def test_category_validation_warns(self, xiv, capsys, category, should_warn):
-        """Unknown categories trigger warning"""
+        """Category validation is case-insensitive; unknown categories trigger warning"""
         assert xiv.validate_category(category) is True
         out = capsys.readouterr()
         stderr = out[1] if isinstance(out, tuple) else out.err
