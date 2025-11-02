@@ -165,7 +165,7 @@ pytest -v                       # Verbose with test names
 - **Configuration**: Environment variables, constants, defaults, validation with warnings
 - **Input validation**: Category format validation (case-insensitive), range checks, policy warnings
 - **Output formats**: JSON, compact list, standard output, formatted (colored) output
-- **Format functionality**: ANSI code application, semantic coloring, et al. handling, formatted warnings/errors
+- **Format functionality**: ANSI code application, semantic coloring, et al. handling, formatted warnings/errors, download progress formatting
 - **Edge cases**: Empty results, error handling, exit codes, pipe handling, invalid index specifications
 
 Unit tests use real arXiv response data for accurate mocking and require no network. Integration tests make live API calls. All tests must pass on Python 2.7 and 3.3–3.14.

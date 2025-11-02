@@ -280,7 +280,7 @@ class TestDownloadPapers:
         self.tmpdir = tmpdir
         self.downloads = []
 
-        monkeypatch.setattr(xiv, 'download', lambda link, d: self.downloads.append(link) or True)
+        monkeypatch.setattr(xiv, 'download', lambda link, d, title='', fmt=0: self.downloads.append(link) or True)
         monkeypatch.setattr(time, 'sleep', lambda s: None)
 
     def test_downloads_each_paper(self, capsys):
@@ -298,7 +298,7 @@ class TestDownloadPapers:
         assert '[1/2]' in stderr and '[2/2]' in stderr
 
     def test_reports_captcha_count(self, monkeypatch, capsys):
-        monkeypatch.setattr(self.xiv, 'download', lambda link, d: 'captcha' if '1' in link else True)
+        monkeypatch.setattr(self.xiv, 'download', lambda link, d, title='', fmt=0: 'captcha' if '1' in link else True)
 
         papers = [{'link': 'http://arxiv.org/abs/1', 'title': 'P1'},
                   {'link': 'http://arxiv.org/abs/2', 'title': 'P2'}]
@@ -591,7 +591,7 @@ class TestSelectiveDownload:
         self.tmpdir = tmpdir
         self.downloads = []
 
-        monkeypatch.setattr(xiv, 'download', lambda link, d: self.downloads.append(link) or True)
+        monkeypatch.setattr(xiv, 'download', lambda link, d, title='', fmt=0: self.downloads.append(link) or True)
         monkeypatch.setattr(time, 'sleep', lambda s: None)
 
     def test_downloads_selected_papers_by_indices(self):
@@ -644,7 +644,7 @@ class TestCLISelectiveDownload:
 
         monkeypatch.setattr(xiv, 'search', lambda *a, **k: self.papers)
         monkeypatch.setattr(xiv, 'download_papers',
-                          lambda papers, dir, indices=None: self.download_papers_calls.append((papers, dir, indices)))
+                          lambda papers, dir, indices=None, formatted=0: self.download_papers_calls.append((papers, dir, indices)))
 
     @pytest.mark.parametrize("args,expected_dir,expected_indices", [
         (['-d'], 'DEFAULT_PDF_DIR', None),

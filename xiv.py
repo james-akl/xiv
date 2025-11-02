@@ -224,7 +224,7 @@ def is_captcha(path):
         content = f.read(CAPTCHA_CHECK_BYTES).lower()
     return b'<html' in content or b'captcha' in content or b'<!doctype' in content
 
-def download(link, output_dir):
+def download(link, output_dir, title='', formatted=0):
     """Download single paper PDF with retry logic. Returns True, False, or 'captcha'"""
     if not os.path.exists(output_dir):
         try:
@@ -259,7 +259,15 @@ def download(link, output_dir):
             if result == 'captcha':
                 sys.stderr.write("CAPTCHA\n")
                 return 'captcha'
-            sys.stderr.write("OK\n")
+            ok_msg = '\033[92mOK\033[0m' if formatted else 'OK'
+            sys.stderr.write(ok_msg)
+            if title:
+                truncated = (title[:20] + '...') if len(title) > 23 else title
+                if formatted:
+                    sys.stderr.write('    \033[90m(%s)\033[0m' % truncated)
+                else:
+                    sys.stderr.write('    (%s)' % truncated)
+            sys.stderr.write('\n')
             return True
         except Exception as e:
             if os.path.exists(path):
@@ -350,21 +358,26 @@ def parse_indices(spec, total):
     except (ValueError, AttributeError):
         return None
 
-def download_papers(papers, output_dir, indices=None):
+def download_papers(papers, output_dir, indices=None, formatted=0):
     """Download papers to output_dir, optionally filtering by indices (0-based)"""
     selected_papers = [papers[i] for i in indices] if indices else papers
 
-    sys.stderr.write("\nDownloading to '%s/'...\n" % output_dir.rstrip('/'))
+    path_display = output_dir.rstrip('/')
+    if formatted:
+        sys.stderr.write("\nDownloading to '\033[94m%s/\033[0m'...\n" % path_display)
+    else:
+        sys.stderr.write("\nDownloading to '%s/'...\n" % path_display)
     if len(selected_papers) > 1:
         sys.stderr.write("Rate limiting: %.1fs delay between downloads\n" % DEFAULT_DOWNLOAD_DELAY)
 
     ok = 0
     captcha_count = 0
+    w = len(str(len(selected_papers)))
 
     for i, p in enumerate(selected_papers, 1):
-        sys.stderr.write("[%d/%d] " % (i, len(selected_papers)))
+        sys.stderr.write("[%s/%s] " % (str(i).zfill(w), str(len(selected_papers)).zfill(w)))
         sys.stderr.flush()
-        result = download(p['link'], output_dir)
+        result = download(p['link'], output_dir, p.get('title', ''), formatted)
 
         if result == 'captcha':
             captcha_count += 1
@@ -375,8 +388,8 @@ def download_papers(papers, output_dir, indices=None):
             try:
                 time.sleep(DEFAULT_DOWNLOAD_DELAY)
             except KeyboardInterrupt:
-                sys.stderr.write("\n\nDownload cancelled by user.\n")
-                sys.stderr.write("%d/%d saved before cancellation\n" % (ok, len(selected_papers)))
+                msg = "\n\nDownload cancelled by user.\n%d/%d saved before cancellation\n" % (ok, len(selected_papers))
+                sys.stderr.write(format_warning(msg, formatted) if formatted else msg)
                 sys.exit(EXIT_SIGINT)
 
     sys.stderr.write("\n%d/%d saved" % (ok, len(selected_papers)))
@@ -531,7 +544,7 @@ def main():
 
     output_dir, indices = parse_download_args(args.d, len(papers), formatted)
     if output_dir:
-        download_papers(papers, output_dir, indices)
+        download_papers(papers, output_dir, indices, formatted)
 
 if __name__ == "__main__":
     # Restore default SIGPIPE to avoid traceback on broken pipes
